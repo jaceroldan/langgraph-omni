@@ -4,10 +4,16 @@
 - Python 3.13
 - Docker
 - Postgres
+- Pyenv
 
 ## Creating deployment
 
-1. Install required packages
+1. Install Python using pyenv
+    ```cmd
+    pyenv install 3.13
+    pyenv local 3.13
+    ```
+
 2. Create `docker-compose.yml` from `docker-compose example.yml`
 3. Place your API keys inside your newly created `docker-compose.yml`.
 
