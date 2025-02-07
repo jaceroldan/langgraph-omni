@@ -21,7 +21,7 @@ from langgraph.store.memory import InMemoryStore
 import configuration
 from api_caller import fetch_task_counts, fetch_shift_logs
 
-## Utilities 
+## Utilities
 
 # Inspect the tool calls for Trustcall
 class Spy:
@@ -42,14 +42,14 @@ class Spy:
 # Extract information from tool calls for both patches and new memories in Trustcall
 def extract_tool_info(tool_calls, schema_name="Memory"):
     """Extract information from tool calls for both patches and new memories.
-    
+
     Args:
         tool_calls: List of tool calls from the model
         schema_name: Name of the schema tool (e.g. "Profile")
     """
     # Initialize list of changes
     changes = []
-    
+
     for call_group in tool_calls:
         for call in call_group:
             if call['name'] == 'PatchDoc':
@@ -93,7 +93,7 @@ def extract_tool_info(tool_calls, schema_name="Memory"):
                 f"New {schema_name} created:\n"
                 f"Content: {change['value']}"
             )
-    
+
     return "\n\n".join(result_parts)
 
 ## Schema definitions
@@ -136,7 +136,7 @@ Here is the current User Profile (may be empty if no information has been collec
 
 Here are your instructions for reasoning about the user's messages:
 
-1. Reason carefully about the user's messages as presented below. 
+1. Reason carefully about the user's messages as presented below.
 
 2. Decide whether any of the your long-term memory should be updated:
 - If personal information was provided about the user, update the user's profile by calling ChooseTask tool with type `user`
@@ -149,9 +149,9 @@ Here are your instructions for reasoning about the user's messages:
 4. Respond naturally to user user after a tool call was made to save memories, or if no tool call was made."""
 
 # Trustcall instruction
-TRUSTCALL_INSTRUCTION = """Reflect on following interaction. 
+TRUSTCALL_INSTRUCTION = """Reflect on following interaction.
 
-Use the provided tools to retain any necessary memories about the user. 
+Use the provided tools to retain any necessary memories about the user.
 
 Use parallel tool calling to handle updates and insertions simultaneously.
 
@@ -163,7 +163,7 @@ System Time: {time}"""
 def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore):
 
     """Load memories from the store and use them to personalize the chatbot's response."""
-    
+
     # Get the user ID from the config
     configurable = configuration.Configuration.from_runnable_config(config)
     user_id = configurable.user_id
@@ -175,7 +175,7 @@ def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore)
         user_profile = memories[0].value
     else:
         user_profile = None
-    
+
     system_msg = MODEL_SYSTEM_MESSAGE.format(user_profile=user_profile)
 
     # Respond using memory as well as the chat history
@@ -186,7 +186,7 @@ def task_mAIstro(state: MessagesState, config: RunnableConfig, store: BaseStore)
 def update_profile(state: MessagesState, config: RunnableConfig, store: BaseStore):
 
     """Reflect on the chat history and update the memory collection."""
-    
+
     # Get the user ID from the config
     configurable = configuration.Configuration.from_runnable_config(config)
     user_id = configurable.user_id
@@ -210,7 +210,7 @@ def update_profile(state: MessagesState, config: RunnableConfig, store: BaseStor
     updated_messages=list(merge_message_runs(messages=[SystemMessage(content=TRUSTCALL_INSTRUCTION_FORMATTED)] + state["messages"][:-1]))
 
     # Invoke the extractor
-    result = profile_extractor.invoke({"messages": updated_messages, 
+    result = profile_extractor.invoke({"messages": updated_messages,
                                          "existing": existing_memories})
 
     # Save save the memories from Trustcall to the store
@@ -251,8 +251,7 @@ def create_shift_summary(state:MessagesState, config: RunnableConfig, store: Bas
 
     response = """Below are the titles of the tasks that the user has done:
     {shifts}
-    Return the exact tasks that the user has done with: \"Today, you did \".
-    Provide a short precise summary for the tasks done afterward.""".format(shifts=shifts)
+    Provide a short precise summary for the tasks done afterward. If above is empty, inform the user that they did not do anything today.""".format(shifts=shifts)
 
     tool_calls = state["messages"][-1].tool_calls
     return {"messages": [{"role": "tool", "content": response, "tool_call_id":tool_calls[0]['id']}]}
@@ -284,7 +283,7 @@ builder.add_node(update_profile)
 builder.add_node(fetch_task_count)
 builder.add_node(create_shift_summary)
 
-# Define the flow 
+# Define the flow
 builder.add_edge(START, "task_mAIstro")
 builder.add_conditional_edges("task_mAIstro", route_message)
 builder.add_edge("update_profile", "task_mAIstro")

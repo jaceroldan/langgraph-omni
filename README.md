@@ -28,10 +28,16 @@
     langgraph build -t my-image
     ```
 
-6. If everything is working, lauch the deployment.
+6. If everything is working, lauch the deployment. (If you already built the image, just do this command immediately)
 
     ```cmd
     docker-compose up
+    ```
+
+7. OPTIONAL: to shutdown the container, do the following in terminal:
+
+    ```cmd
+    docker-compose down
     ```
 
 ## Viewing your Deployed Graph
