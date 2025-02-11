@@ -223,7 +223,7 @@ def update_profile(state: MessagesState, config: RunnableConfig, store: BaseStor
     # Return tool message with update verification
     return {"messages": [{"role": "tool", "content": "updated profile", "tool_call_id":tool_calls[0]['id']}]}
 
-def fetch_task_count(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def fetch_task_count(state: MessagesState, config: RunnableConfig):
 
     """Returns the current number of tasks assigned to the user"""
 
@@ -239,7 +239,7 @@ def fetch_task_count(state: MessagesState, config: RunnableConfig, store: BaseSt
     tool_calls = state["messages"][-1].tool_calls
     return {"messages": [{"role": "tool", "content": response, "tool_call_id":tool_calls[0]['id']}]}
 
-def create_shift_summary(state:MessagesState, config: RunnableConfig, store: BaseStore):
+def create_shift_summary(state:MessagesState, config: RunnableConfig):
 
     """Returns a short summary of the tasks worked on the current shift"""
 
@@ -257,7 +257,7 @@ def create_shift_summary(state:MessagesState, config: RunnableConfig, store: Bas
     return {"messages": [{"role": "tool", "content": response, "tool_call_id":tool_calls[0]['id']}]}
 
 # Conditional edge
-def route_message(state: MessagesState, config: RunnableConfig, store: BaseStore) -> Literal[ "update_profile", "fetch_task_count", "create_shift_summary", END]:
+def route_message(state: MessagesState) -> Literal[ "update_profile", "fetch_task_count", "create_shift_summary", END]:
 
     """Reflect on the memories and chat history to decide whether to update the memory collection."""
     message = state['messages'][-1]
