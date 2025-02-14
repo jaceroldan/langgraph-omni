@@ -25,6 +25,7 @@ Here are your instructions for reasoning about the user's messages:
 
 2. Decide which action is being asked and respond accordingly:
 - if the user wants to create anything, call the `ChooseTask` tool with type `input_helper`
+- if the user asks for anything that is not included above, tell the user that the action is not allowed.
 
 3. Err on the side of calling tools. No need to ask for explicit permission.
 
@@ -73,9 +74,9 @@ def input_helper(state: MessagesState) -> ContinueState:
     """Ensures that the data about to be sent is formatted correctly."""
 
     INPUT_HELPER_MESSAGE = """Make sure the data is provided by the user, if not ask them for the data and assign `validated` as false.
-    If the data is Optional, it can be ignored. Do not provide default data for the user.
+    If the data is Optional, it can be ignored.
 
-    In this scenario, a Card is a task and it needs the following data:
+    In this scenario, a Card is a task and it needs the following data. Do not provide data for the user if there are none:
     - title
     - assignee (Optional)
     - is_public (Optional)
