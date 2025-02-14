@@ -1,9 +1,9 @@
 {
   "dockerfile_lines": [],
   "graphs": {
-    "task_maistro": "./task_maistro.py:graph"
+    "scalema_omni": "./scalema_omni.py:graph"
   },
-  "python_version": "3.11",
+  "python_version": "3.13",
   "dependencies": [
     "."
   ]

@@ -23,3 +23,27 @@ def fetch_shift_logs(auth_token, employment_id, shift_start):
     response = requests.get(url, headers=headers)
 
     return response.json()
+
+def create_card(auth_token, data:dict):
+    headers = {
+        "Authorization": auth_token
+    }
+
+    user_id = data.get("user_id")
+    title = data.get("title")
+    is_public = data.get("is_public", True)
+
+    # url = f"{VITE_LOCALHOST}/board/scalema-omni-card-create"
+    # data = {
+    #     "user_id": user_id
+    # }
+    url = f"{VITE_LOCALHOST}/api-sileo/v1/board/card-panel/create/"
+    data = {
+        "creator": user_id, # "84149",
+        "assignees": user_id, # "84149",
+        "title": title, # "summa lumma dumma lumma",
+        "column": "213",
+        "is_public": is_public
+    }
+    response = requests.post(url, data=data, headers=headers)
+    return response.status_code
