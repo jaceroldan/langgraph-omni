@@ -1,186 +1,104 @@
-from datetime import datetime
-from typing import Literal, Optional, TypedDict, get_origin, get_args
-from pydantic import BaseModel, Field
-from trustcall import create_extractor
-
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import merge_message_runs
-from langgraph.store.base import BaseStore
-from langgraph.store.memory import InMemoryStore
-from langchain_core.messages import SystemMessage, AIMessage
+from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
+from langchain_core.tools import tool
+from langgraph.prebuilt import ToolNode
 
+from langgraph.types import interrupt, Command
+
+from langgraph.checkpoint.memory import MemorySaver
+from pydantic import BaseModel
 
 import configuration
 import api_caller
 
 
-# SYSTEM MESSAGES
-ASSISTANT_MODEL_MESSAGE = """You are a helpful chatbot.
-
-Here are your instructions for reasoning about the user's messages:
-
-1. Reason carefully about the user's messages as presented below.
-
-2. Decide which action is being asked and respond accordingly:
-- if the user wants to create anything, call the `ChooseTask` tool with type `input_helper`
-- if the user asks for anything that is not included above, tell the user that the action is not allowed.
-
-3. Err on the side of calling tools. No need to ask for explicit permission.
-
-4. Respond naturally to user as if no tool call was made."""
-
-
-
-
-RESPOND_MESSAGE = """Directly respond to the user with the following message: {msg}"""
-
-
-class GraphState(MessagesState):
-    meta: dict
-class ContinueState(GraphState):
-    to_continue: bool
-
-
-
-class ChooseTask(TypedDict):
-    """ Decision on what tool to use """
-    task_type: Literal['input_helper']
-
-class Form(BaseModel):
-    validated: bool = Field(description="Checks whether the card is acceptable or not.")
-
-class CardForm(Form):
-    title: str = Field(description="The card's title"),
-    assignee: Optional[str] = Field(description="Person assigned to complete the task")
-    is_public: Optional[bool] = Field(description="Visibility of the card to other users")
-
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o", temperature=0)
 
-# Nodes
-def assistant(state: MessagesState) -> MessagesState:
-
-    """Intermediary node to personalize the chatbot's responses"""
-
-    system_msg = ASSISTANT_MODEL_MESSAGE
-
-    response = model.bind_tools([ChooseTask], parallel_tool_calls=False).invoke([SystemMessage(content=system_msg)]+ state["messages"])
-    return {"messages": [response]}
-
-def input_helper(state: MessagesState) -> ContinueState:
-
-    """Ensures that the data about to be sent is formatted correctly."""
-
-    INPUT_HELPER_MESSAGE = """Make sure the data is provided by the user, if not ask them for the data and assign `validated` as false.
-    If the data is Optional, it can be ignored.
-
-    In this scenario, a Card is a task and it needs the following data. Do not provide data for the user if there are none:
-    - title
-    - assignee (Optional)
-    - is_public (Optional)
-
-    Based on the data, determine if the data is complete by assigning `validated` a value.
-    If all Non-Optional data is provided, assign `validated` as true.
-
-    System Time: {time}"""
-
-    card_data_extractor = create_extractor(
-        model.bind_tools([], parallel_tool_calls=False),
-        tools=[CardForm],
-        tool_choice="CardForm"
-    )
-
-    system_msg = INPUT_HELPER_MESSAGE.format(time=datetime.now().isoformat())
-    updated_messages = list(merge_message_runs([SystemMessage(content=system_msg)] + state["messages"][:-1]))
-
-    result = card_data_extractor.invoke({"messages": updated_messages})
-    args = result["messages"][-1].tool_calls[0]["args"]
-    print("\n\nargs: ", str(args))
-
-    form = {}
-    to_continue = False
-    if args:
-        to_continue = args["validated"]
-        form = {
-            "title": args["title"],
-            "assignee": args["assignee"],
-            "is_public": args["is_public"]
-        }
-
-    tool_calls = state['messages'][-1].tool_calls
-
-    message_content = "" if to_continue else "card creation was incomplete, inform the user about this."
-    message = {
-        "role": "tool",
-        "content": message_content,
-        "tool_call_id":tool_calls[0]['id']
-    }
+# EXAMPLES
+# def assistant(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
+#     return {"messages": [AIMessage(content="This is an AI message")] + state["messages"]}
+# def human_node(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
+#     user_input = interrupt(value="Ready for user input.")
+#     return Command(goto="end_node", update={"messages": [HumanMessage(content=user_input)]})
+# def end_node(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
+#     last_message = state["messages"][-1].content
+#     return {"messages": [AIMessage(content=f"Goodbye! You said: {last_message}")]}
 
 
-    return {"messages":[message], "to_continue": to_continue, "meta": {"form":form}}
-
-def create_card(state: GraphState, config: RunnableConfig) -> MessagesState:
-
-    """Only accessed when creating a card"""
-
-    auth_token = config["configurable"]["auth_token"]
-    user_profile_id = config["configurable"]["user_profile_id"]
-
-    args = state["meta"]["form"]
-
-    # CardForm
-    data = {
-        "user_profile_id": user_profile_id,
-        "title": args["title"],
-        "assignee": args["assignee"],
-        "is_public": args["is_public"]
-    }
+# TOOLS
+@tool
+def call_api(query: str):
+    """Calls an api"""
+    return f"I called {query}. Result: Say hello to the user."
 
 
-    response = api_caller.create_card(auth_token, data)
+tools = [call_api]
+tool_node = ToolNode(tools)
 
-    tool_calls = state['messages'][-2].tool_calls
 
-    CREATE_CARD_MESSAGE = """The server returned the following: {response}
-    Briefly inform the user about the creation considering the received data.
-    """
+class AskHuman(BaseModel):
+    """Ask the human a question"""
+    question: str
 
-    return {"messages": SystemMessage(content=CREATE_CARD_MESSAGE.format(response=response), tool_call_id=tool_calls[0]['id'])}
 
-# Routers
-def route_message(state: MessagesState) -> Literal[ "input_helper", END]:
-    """Decide which appropriate tool to call using the user's prompt."""
+model = model.bind_tools(tools + [AskHuman])
 
-    message = state['messages'][-1]
 
-    if len(message.tool_calls) ==0:
+def should_continue(state):
+    """Decides whether to continue or not"""
+    messages = state["messages"]
+
+    tool_calls = messages[-1].tool_calls
+    # If there is no function call, then finish
+    if not tool_calls:
         return END
+    elif tool_calls[0]["name"] == "AskHuman":
+        return "ask_human"
     else:
-        tool_call = message.tool_calls[0]
-        if tool_call['args']['task_type'] == "input_helper":
-            return "input_helper"
-        raise ValueError
+        return "action"
 
-def continue_to_create_card(state: ContinueState) -> Literal["assistant", "create_card"]:
-    """ Decides whether to continue or not based on the data provided """
 
-    if state["to_continue"] == True:
-        return "create_card"
-    return "assistant"
+def ask_human(state):
+    """Internal node to ask the user"""
+
+    tool_call = state["messages"][-1].tool_calls[0]
+    question = tool_call["args"]["question"]
+
+    user_input = interrupt(question)
+    content_message = """The user responded with:
+    {input}
+    Respond only with a rating of this answer from 1 to 10."""
+
+    tool_message = [{
+        "tool_call_id": tool_call["id"],
+        "type": "tool",
+        "content": content_message.format(input=user_input)
+    }]
+    return {"messages": tool_message}
+
+
+def agent(state):
+    """Node to call the model"""
+    messages = state["messages"]
+    response = model.invoke(messages)
+    return {"messages": response}
+
 
 # Build the graph
-builder = StateGraph(GraphState, config_schema=configuration.Configuration)
+builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
 
-builder.add_node(assistant)
-builder.add_node(input_helper)
-builder.add_node(create_card)
+builder.add_node(agent)
+builder.add_node("action", tool_node)
+builder.add_node(ask_human)
 
-builder.add_edge(START, "assistant")
-builder.add_conditional_edges("assistant", route_message)
-builder.add_conditional_edges("input_helper", continue_to_create_card)
-builder.add_edge("create_card", "assistant")
+builder.add_edge(START, "agent")
+builder.add_conditional_edges("agent", should_continue)
+builder.add_edge("action", "agent")
+builder.add_edge("ask_human", "agent")
 
 # Compile the graph
-graph = builder.compile()
+checkpointer = MemorySaver()
+graph = builder.compile(checkpointer=checkpointer)

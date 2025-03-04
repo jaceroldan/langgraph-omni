@@ -1,6 +1,7 @@
 # READ ME
 
 ## Requirements
+
 - Python 3.13
 - Docker
 - Postgres
@@ -9,6 +10,7 @@
 ## Creating deployment
 
 1. Install Python using pyenv
+
     ```cmd
     pyenv install 3.13
     pyenv local 3.13
