@@ -1,76 +1,59 @@
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_openai import ChatOpenAI
-from langchain_core.runnables import RunnableConfig
-from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
-from langchain_core.tools import tool
-from langgraph.prebuilt import ToolNode
+from langchain_core.messages import SystemMessage
 
-from langgraph.types import interrupt, Command
+from langgraph.types import interrupt
 
 from langgraph.checkpoint.memory import MemorySaver
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import configuration
-import api_caller
 
 
-# Initialize the model
-model = ChatOpenAI(model="gpt-4o", temperature=0)
+class HumanQuery(BaseModel):  # Used to structure data
 
-# EXAMPLES
-# def assistant(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
-#     return {"messages": [AIMessage(content="This is an AI message")] + state["messages"]}
-# def human_node(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
-#     user_input = interrupt(value="Ready for user input.")
-#     return Command(goto="end_node", update={"messages": [HumanMessage(content=user_input)]})
-# def end_node(state: MessagesState, configuration=RunnableConfig) -> MessagesState:
-#     last_message = state["messages"][-1].content
-#     return {"messages": [AIMessage(content=f"Goodbye! You said: {last_message}")]}
+    """
+    This contains the arguments of the User's query that you are chatting with.
+    Always call this tool whenever the User asks anything.
+    """
+
+    query: str = Field(description="This contains the user's query")
 
 
-# TOOLS
-@tool
-def call_api(query: str):
-    """Calls an api"""
-    return f"I called {query}. Result: Say hello to the user."
+def should_continue(state: MessagesState):
 
+    """Decide whether to continue or not"""
 
-tools = [call_api]
-tool_node = ToolNode(tools)
-
-
-class AskHuman(BaseModel):
-    """Ask the human a question"""
-    question: str
-
-
-model = model.bind_tools(tools + [AskHuman])
-
-
-def should_continue(state):
-    """Decides whether to continue or not"""
     messages = state["messages"]
 
     tool_calls = messages[-1].tool_calls
     # If there is no function call, then finish
     if not tool_calls:
         return END
-    elif tool_calls[0]["name"] == "AskHuman":
-        return "ask_human"
+
+    if tool_calls[0]["name"] == "HumanQuery":
+        return "input_node"
     else:
-        return "action"
+        return END
 
 
-def ask_human(state):
-    """Internal node to ask the user"""
+def input_node(state: MessagesState):
+
+    """Facilitates HITL and assists in collecting user input"""
 
     tool_call = state["messages"][-1].tool_calls[0]
-    question = tool_call["args"]["question"]
+    prompt = tool_call["args"]["query"]
+    formatted_question = (
+        "You asked: {question}, provide an answer for this."
+    )
 
-    user_input = interrupt(question)
-    content_message = """The user responded with:
-    {input}
-    Respond only with a rating of this answer from 1 to 10."""
+    user_input = interrupt(formatted_question.format(question=prompt))
+    content_message = (
+        "The user responded with: "
+        "<input>{input}</input>"
+        "\nReview the user's input in relation to the question. Correct it if "
+        "is wrong and provide an explanation."
+    )  # This is temporary until a use case is created
 
     tool_message = [{
         "tool_call_id": tool_call["id"],
@@ -80,24 +63,34 @@ def ask_human(state):
     return {"messages": tool_message}
 
 
-def agent(state):
-    """Node to call the model"""
-    messages = state["messages"]
-    response = model.invoke(messages)
+def agent(state: MessagesState):
+
+    """Helps personalizes chatbot messages"""
+
+    response = model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
     return {"messages": response}
 
+
+# System Messages for the Model
+MODEL_SYSTEM_MESSAGE = (
+    "You are Scalema, a helpful chatbot that helps clients with their business queries. "
+    "If it's your first time talking with a client, be sure to inform them this."
+)
+
+
+# Initialize the model
+model = ChatOpenAI(model="gpt-4o", temperature=0)
+model = model.bind_tools([HumanQuery])
 
 # Build the graph
 builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
 
 builder.add_node(agent)
-builder.add_node("action", tool_node)
-builder.add_node(ask_human)
+builder.add_node(input_node)
 
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", should_continue)
-builder.add_edge("action", "agent")
-builder.add_edge("ask_human", "agent")
+builder.add_edge("input_node", "agent")
 
 # Compile the graph
 checkpointer = MemorySaver()

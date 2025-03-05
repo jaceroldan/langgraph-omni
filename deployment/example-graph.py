@@ -1,4 +1,8 @@
-# Example Graph
+# EXAMPLE GRAPH
+#   This is only used as a reference considering the documentation for langgraph
+#   is a bit all over the place.
+#   Uncommenting this file should result in a usable graph anyway.
+
 
 # import uuid
 # from datetime import datetime
@@ -25,7 +29,7 @@
 
 # ## Utilities
 
-# # Inspect the tool calls for Trustcall
+# Inspect the tool calls for Trustcall
 # class Spy:
 #     def __init__(self):
 #         self.called_tools = []
