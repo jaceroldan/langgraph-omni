@@ -1,8 +1,7 @@
 import requests
 import urllib.parse
 
-VITE_LOCALHOST="http://host.docker.internal:8000"
-
+VITE_LOCALHOST = "http://host.docker.internal:8000"
 
 
 def fetch_task_counts(auth_token, workforce_id):
@@ -14,6 +13,7 @@ def fetch_task_counts(auth_token, workforce_id):
 
     return response.json()
 
+
 def fetch_shift_logs(auth_token, employment_id, shift_start):
     encoded_datetime = urllib.parse.quote(shift_start)
     headers = {
@@ -24,7 +24,8 @@ def fetch_shift_logs(auth_token, employment_id, shift_start):
 
     return response.json()
 
-def create_card(auth_token, data:dict):
+
+def create_card(auth_token, data: dict):
     headers = {
         "Authorization": auth_token
     }
@@ -33,15 +34,11 @@ def create_card(auth_token, data:dict):
     title = data.get("title")
     is_public = data.get("is_public", True)
 
-    # url = f"{VITE_LOCALHOST}/board/scalema-omni-card-create"
-    # data = {
-    #     "user_id": user_id
-    # }
     url = f"{VITE_LOCALHOST}/api-sileo/v1/board/card-panel/create/"
     data = {
-        "creator": user_id, # "84149",
-        "assignees": user_id, # "84149",
-        "title": title, # "summa lumma dumma lumma",
+        "creator": user_id,
+        "assignees": user_id,
+        "title": title,
         "column": "213",
         "is_public": is_public
     }
