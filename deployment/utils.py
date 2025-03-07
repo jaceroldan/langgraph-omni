@@ -3,19 +3,20 @@ import re
 from decimal import Decimal
 from typing import List, Dict
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_openai import ChatOpenAI
+model = ChatOpenAI(model="gpt-4o", temperature=0)
 
 
 def estimate_tasks_duration(
     model,
-    state,
     task_names: List[str],
     similar_tasks: List[Dict],
     job_position: str,
     years_of_experience: int,
 ) -> Decimal:
     """
-    Main util function for the API endpoint that generates AI estimation of the total hours
-    required to complete multiple tasks.
+        Main util function for the API endpoint that generates AI estimation
+        of the total hours required to complete multiple tasks.
     """
 
     system_template = (
@@ -54,13 +55,13 @@ def estimate_tasks_duration(
     )
 
     ai_estimated_hours = generate_completion(
-        state, model, system_prompt, user_prompt)
+        system_prompt, user_prompt)
+
     return ai_estimated_hours
-    # return Decimal(ai_estimated_hours)
 
 
 def generate_completion(
-        state, model, system_prompt: str, user_prompt: str) -> Decimal:
+        system_prompt: str, user_prompt: str) -> Decimal:
     """
         Performs the external API call to OpenAI and returns an integer
         value for estimated hours
@@ -68,7 +69,6 @@ def generate_completion(
     try:
         response = model.invoke(
                 [SystemMessage(content=system_prompt)] +
-                state['messages'][:-1] +
                 [HumanMessage(content=user_prompt)]
             )
 
@@ -81,7 +81,6 @@ def generate_completion(
             last_match = matches[-1]
 
         return Decimal(last_match)
-        return response
 
     except Exception as e:
         print(e)

@@ -2,13 +2,13 @@ from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import interrupt
+from langgraph.checkpoint.memory import MemorySaver
+
+from pydantic import BaseModel, Field
+
 from api_caller import fetch_weekly_task_estimates
 from utils import estimate_tasks_duration
-
-from langgraph.types import interrupt
-
-from langgraph.checkpoint.memory import MemorySaver
-from pydantic import BaseModel, Field
 
 import configuration
 
@@ -33,8 +33,6 @@ def should_continue(state: MessagesState):
     # If there is no function call, then finish
     if not tool_calls:
         return END
-    print(tool_calls[0])
-    print("@"*20)
     if tool_calls[0]["name"] == "HumanQuery":
         return "input_node"
     if tool_calls[0]["name"] == "fetch_weekly_task_estimates_summary":
@@ -88,7 +86,6 @@ def fetch_weekly_task_estimates_summary(
         response = response['data']
         ai_estimation_hours = estimate_tasks_duration(
             model,
-            state,
             response['target_task_names'],
             response['similar_task_names'],
             job_position,
@@ -140,10 +137,12 @@ builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
 
 builder.add_node(agent)
 builder.add_node(input_node)
+builder.add_node(fetch_weekly_task_estimates_summary)
 
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", should_continue)
 builder.add_edge("input_node", "agent")
+builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
 
 # Compile the graph
 checkpointer = MemorySaver()
