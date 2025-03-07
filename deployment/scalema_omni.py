@@ -78,9 +78,10 @@ def fetch_weekly_task_estimates_summary(
     employment_id = config["configurable"]["employment_id"]
     job_position = config["configurable"]["job_position"]
     user_profile_pk = config["configurable"]["user_profile_pk"]
+    x_timezone = config["configurable"]["x_timezone"]
 
     response = fetch_weekly_task_estimates(
-        auth_token, employment_id, user_profile_pk)
+        auth_token, employment_id, user_profile_pk, x_timezone)
 
     if response:
         response = response['data']

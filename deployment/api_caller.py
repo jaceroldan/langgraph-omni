@@ -47,9 +47,10 @@ def create_card(auth_token, data: dict):
     return response.status_code
 
 
-def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk):
+def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_timezone):
     headers = {
         "Authorization": auth_token,
+        "X-Timezone": x_timezone
     }
     url = f"{VITE_LOCALHOST}/api-sileo/v4/hqzen/task-assignments/filter/"
     url2 = f"{VITE_LOCALHOST}/api-sileo/v1/ai/langgraph-task-duration-estimation/filter/"
