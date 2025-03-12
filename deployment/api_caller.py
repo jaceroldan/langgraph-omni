@@ -52,6 +52,7 @@ def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_ti
         "Authorization": auth_token,
         "X-Timezone": x_timezone
     }
+    print('kyle')
     url = f"{VITE_LOCALHOST}/api-sileo/v4/hqzen/task-assignments/filter/"
     url2 = f"{VITE_LOCALHOST}/api-sileo/v1/ai/langgraph-task-duration-estimation/filter/"
 
@@ -84,6 +85,6 @@ def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_ti
         fetch_estimates = f"{url2}?{params}"
         estimates = requests.get(fetch_estimates, headers=headers)
         estimates = estimates.json()
-
+    print('onil')
     # Output response
     return estimates

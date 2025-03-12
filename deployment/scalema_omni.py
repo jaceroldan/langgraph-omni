@@ -4,6 +4,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import ToolNode
 
 from pydantic import BaseModel, Field
 
@@ -33,10 +34,11 @@ def should_continue(state: MessagesState):
     # If there is no function call, then finish
     if not tool_calls:
         return END
-    if tool_calls[0]["name"] == "HumanQuery":
-        return "input_node"
+    # if tool_calls[0]["name"] == "HumanQuery":
+    #     return "input_node"
     if tool_calls[0]["name"] == "fetch_weekly_task_estimates_summary":
-        return "fetch_weekly_task_estimates_summary"
+        print('test'*10)
+        return "weekly_estimates_summary"
     else:
         return END
 
@@ -72,7 +74,9 @@ def fetch_weekly_task_estimates_summary(
 
     """
         Returns a short summary of the estimated hours needed for
-        the user's tasks for the week
+        the user's tasks for the week.
+        Call "fetch_weekly_task_estimates_summary" if
+        this is asked by the user.
     """
     auth_token = config["configurable"]["auth_token"]
     employment_id = config["configurable"]["employment_id"]
@@ -105,11 +109,7 @@ def fetch_weekly_task_estimates_summary(
         completing their work for the week and encourage them to relax.
     """.format(ai_estimation_hours=ai_estimation_hours)
 
-    tool_calls = state["messages"][-1].tool_calls
-    return {"messages": [{
-        "role": "tool",
-        "content": response,
-        "tool_call_id": tool_calls[0]['id']}]}
+    return {"messages": response}
 
 
 def agent(state: MessagesState):
@@ -127,7 +127,7 @@ MODEL_SYSTEM_MESSAGE = (
 )
 
 # Tools
-tools = [HumanQuery, fetch_weekly_task_estimates_summary]
+tools = [fetch_weekly_task_estimates_summary]
 
 # Initialize the model
 model = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -137,13 +137,13 @@ model = model.bind_tools(tools)
 builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
 
 builder.add_node(agent)
-builder.add_node(input_node)
-builder.add_node(fetch_weekly_task_estimates_summary)
+# builder.add_node(input_node)
+builder.add_node("weekly_estimates_summary", ToolNode(tools))
 
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", should_continue)
-builder.add_edge("input_node", "agent")
-builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
+# builder.add_edge("input_node", "agent")
+builder.add_edge("weekly_estimates_summary", "agent")
 
 # Compile the graph
 checkpointer = MemorySaver()

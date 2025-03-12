@@ -18,6 +18,7 @@ def estimate_tasks_duration(
         Main util function for the API endpoint that generates AI estimation
         of the total hours required to complete multiple tasks.
     """
+    print("hilo")
 
     system_template = (
         "You are an expert in estimating hours needed to complete any task. I"
@@ -66,6 +67,7 @@ def generate_completion(
         Performs the external API call to OpenAI and returns an integer
         value for estimated hours
     """
+    print("damn")
     try:
         response = model.invoke(
                 [SystemMessage(content=system_prompt)] +
