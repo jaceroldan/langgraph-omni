@@ -4,7 +4,6 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import ToolNode
 
 from pydantic import BaseModel, Field
 
@@ -37,8 +36,7 @@ def should_continue(state: MessagesState):
     # if tool_calls[0]["name"] == "HumanQuery":
     #     return "input_node"
     if tool_calls[0]["name"] == "fetch_weekly_task_estimates_summary":
-        print('test'*10)
-        return "weekly_estimates_summary"
+        return "fetch_weekly_task_estimates_summary"
     else:
         return END
 
@@ -71,12 +69,12 @@ def input_node(state: MessagesState):
 
 def fetch_weekly_task_estimates_summary(
         state: MessagesState, config: RunnableConfig):
-
     """
-        Returns a short summary of the estimated hours needed for
-        the user's tasks for the week.
-        Call "fetch_weekly_task_estimates_summary" if
-        this is asked by the user.
+        Provides a summary of the estimated hours required for
+        the user's tasks for the week. Use this tool whenever the
+        user asks about their weekly task estimates. Call
+        "fetch_weekly_task_estimates_summary" to retrieve
+        this information.
     """
     auth_token = config["configurable"]["auth_token"]
     employment_id = config["configurable"]["employment_id"]
@@ -109,7 +107,11 @@ def fetch_weekly_task_estimates_summary(
         completing their work for the week and encourage them to relax.
     """.format(ai_estimation_hours=ai_estimation_hours)
 
-    return {"messages": response}
+    tool_calls = state["messages"][-1].tool_calls
+    return {"messages": [{
+        "role": "tool",
+        "content": response,
+        "tool_call_id": tool_calls[0]['id']}]}
 
 
 def agent(state: MessagesState):
@@ -121,10 +123,20 @@ def agent(state: MessagesState):
 
 
 # System Messages for the Model
-MODEL_SYSTEM_MESSAGE = (
-    "You are Scalema, a helpful chatbot that helps clients with their business queries. "
-    "If it's your first time talking with a client, be sure to inform them this."
-)
+MODEL_SYSTEM_MESSAGE = """
+        You are Scalema, a helpful chatbot that helps clients with their
+        business queries. If it's your first time talking with a client,
+        be sure to inform them this. Here are your instructions for
+        reasoning about the user's messages:
+
+        Reason carefully about the user's messages as presented below.
+
+        1. If the user asks for an estimate of the total hours required for
+        their tasks this week, call the fetch_weekly_task_estimates_summary
+        tool. This applies whenever the user inquires about their workload,
+        the time needed to complete their tasks, or any similar phrasing
+        related to task estimates for the week.
+    """
 
 # Tools
 tools = [fetch_weekly_task_estimates_summary]
@@ -137,13 +149,14 @@ model = model.bind_tools(tools)
 builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
 
 builder.add_node(agent)
+builder.add_node(fetch_weekly_task_estimates_summary)
+
 # builder.add_node(input_node)
-builder.add_node("weekly_estimates_summary", ToolNode(tools))
 
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", should_continue)
 # builder.add_edge("input_node", "agent")
-builder.add_edge("weekly_estimates_summary", "agent")
+builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
 
 # Compile the graph
 checkpointer = MemorySaver()
