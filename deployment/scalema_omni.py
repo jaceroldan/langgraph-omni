@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from langgraph.types import interrupt
 
@@ -63,11 +64,14 @@ def input_node(state: MessagesState):
     return {"messages": tool_message}
 
 
-def agent(state: MessagesState):
+def agent(state: MessagesState, config=RunnableConfig):
 
     """Helps personalizes chatbot messages"""
 
-    response = model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
+    # access model name through config passed in the Backend
+    model_name = config.get('configurable', {}).get("model_name", "gpt-4o")
+    node_model = models[model_name].bind_tools([HumanQuery])
+    response = node_model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
     return {"messages": response}
 
 
@@ -77,10 +81,11 @@ MODEL_SYSTEM_MESSAGE = (
     "If it's your first time talking with a client, be sure to inform them this."
 )
 
+models = {
+    "gpt-4o": ChatOpenAI(model="gpt-4o", temperature=0),
+    "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", temperature=0)
+}
 
-# Initialize the model
-model = ChatOpenAI(model="gpt-4o", temperature=0)
-model = model.bind_tools([HumanQuery])
 
 # Build the graph
 builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
