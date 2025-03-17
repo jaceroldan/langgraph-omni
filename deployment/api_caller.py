@@ -78,7 +78,8 @@ def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_ti
     if task_names:
         estimate_parameters = {
             "user_profile_pk": user_profile_pk,
-            "task_names":  json.dumps(task_names)
+            "task_names":  json.dumps(task_names),
+            "n_similar_task_count": 10
         }
         params = urllib.parse.urlencode(estimate_parameters)
         fetch_estimates = f"{url2}?{params}"
