@@ -19,7 +19,7 @@ def fetch_shift_logs(auth_token, employment_id, shift_start):
     headers = {
         "Authorization": auth_token
     }
-    url = f"{VITE_LOCALHOST}/api-sileo/ai/timelogging/time-log/filter/?employment_id={employment_id}&shift_start={encoded_datetime}"
+    url = f"{VITE_LOCALHOST}/api-sileo/ai/timelogging/time-log/filter/?employment_id={employment_id}&shift_start={encoded_datetime}"  # noqa
     response = requests.get(url, headers=headers)
 
     return response.json()

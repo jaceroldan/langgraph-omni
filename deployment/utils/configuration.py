@@ -1,15 +1,21 @@
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from typing import Any, Optional
 
 from langchain_core.runnables import RunnableConfig
-from typing_extensions import Annotated
-from dataclasses import dataclass
+
 
 @dataclass(kw_only=True)
 class Configuration:
     """The configurable fields for the chatbot."""
-    user_id: str = "default-user"
+    auth_token: str
+    thread_id: str
+    model_name: str = "gpt-4o"
+
+    user_profile_pk: str = ""
+    employment_id: str = ""
+    job_position: Optional[str] = None
+    x_timezone: Optional[str] = None
 
     @classmethod
     def from_runnable_config(

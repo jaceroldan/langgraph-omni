@@ -1,7 +1,7 @@
 {
   "dockerfile_lines": [],
   "graphs": {
-    "scalema_omni": "./scalema_omni.py:graph"
+    "scalema_omni": "./graphs/scalema_omni.py:graph"
   },
   "python_version": "3.13",
   "dependencies": [

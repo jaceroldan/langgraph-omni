@@ -1,8 +1,17 @@
-# EXAMPLE GRAPH
-#   This is only used as a reference considering the documentation for langgraph
-#   is a bit all over the place.
-#   Uncommenting this file should result in a usable graph anyway.
+# flake8: noqa
 
+"""EXAMPLE GRAPH
+  This is only used as a reference considering the documentation for langgraph
+  is a bit all over the place.
+  Uncommenting this file should result in a usable graph anyway.
+
+  Each graph should be structured as follows:
+    1. Imports                          - if possible, tools should be imported from a separate file inside the utils folder
+    2. Utilities/Helper functions       - define any functions that will be used in the graph
+    3. Schema definitions               - define the schemas for the tools used in the graph
+    3. Nodes and edges                  - define the nodes and edges of the graph
+    4. Initialize graph                 - initialize and compile the graph with the nodes and edges
+"""
 
 # import uuid
 # from datetime import datetime

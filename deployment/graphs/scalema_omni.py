@@ -1,29 +1,31 @@
-from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage
-from langchain_core.runnables import RunnableConfig
-
-from langgraph.types import interrupt
-
-from langgraph.checkpoint.memory import MemorySaver
+# Import general libraries
 from pydantic import BaseModel, Field
 
-import configuration
+# Import Langgraph
+from langgraph.graph import StateGraph, MessagesState, START, END
+from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.types import interrupt
+from langgraph.checkpoint.memory import MemorySaver
+
+# Import utility functions
+from utils.configuration import Configuration
+from utils.models import models
 
 
 class HumanQuery(BaseModel):  # Used to structure data
-
     """
-    This contains the arguments of the User's query that you are chatting with.
-    Always call this tool whenever the User asks anything.
+        This contains the arguments of the User's query that you are chatting with.
+        Always call this tool whenever the User asks anything.
     """
 
     query: str = Field(description="This contains the user's query")
 
 
 def should_continue(state: MessagesState):
-
-    """Decide whether to continue or not"""
+    """
+        Decide whether to continue or not
+    """
 
     messages = state["messages"]
 
@@ -39,8 +41,9 @@ def should_continue(state: MessagesState):
 
 
 def input_node(state: MessagesState):
-
-    """Facilitates HITL and assists in collecting user input"""
+    """
+        Facilitates HITL and assists in collecting user input
+    """
 
     tool_call = state["messages"][-1].tool_calls[0]
     prompt = tool_call["args"]["query"]
@@ -65,14 +68,15 @@ def input_node(state: MessagesState):
 
 
 def agent(state: MessagesState, config=RunnableConfig):
-
-    """Helps personalizes chatbot messages"""
+    """
+        Helps personalizes chatbot messages
+    """
 
     # access model name through config passed in the Backend
-    model_name = config.get('configurable', {}).get("model_name", "gpt-4o")
+    model_name = Configuration.from_runnable_config(config).model_name
     node_model = models[model_name].bind_tools([HumanQuery])
     response = node_model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
-    return {"messages": response}
+    return {"messages": [response]}
 
 
 # System Messages for the Model
@@ -81,14 +85,9 @@ MODEL_SYSTEM_MESSAGE = (
     "If it's your first time talking with a client, be sure to inform them this."
 )
 
-models = {
-    "gpt-4o": ChatOpenAI(model="gpt-4o", temperature=0),
-    "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", temperature=0)
-}
-
 
 # Build the graph
-builder = StateGraph(MessagesState, config_schema=configuration.Configuration)
+builder = StateGraph(MessagesState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node(input_node)

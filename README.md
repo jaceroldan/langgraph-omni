@@ -29,20 +29,39 @@
     ```cmd
     cd deployment
     ```
+5. Create a new virtualenv
 
-5. Create an image for your deployment
+    ```cmd
+    python -m venv venv
+    source venv/bin/activate
+    ```
+
+    Use the following if on windows:
+
+    ```cmd
+    python -m venv venv
+    venv/Scripts/activate.bat
+    ```
+
+6. Install requirements
+
+    ```cmd
+    pip install -r requirements.txt
+    ```
+
+7. Create an image for your deployment
 
     ```cmd
     langgraph build -t my-image
     ```
 
-6. If everything is working, lauch the deployment. (If you already built the image, just do this command immediately)
+8. If everything is working, lauch the deployment. (If you already built the image, just do this command immediately)
 
     ```cmd
     docker-compose up
     ```
 
-7. OPTIONAL: to shutdown the container, do the following in terminal:
+9. OPTIONAL: to shutdown the container, do the following in terminal:
 
     ```cmd
     docker-compose down
