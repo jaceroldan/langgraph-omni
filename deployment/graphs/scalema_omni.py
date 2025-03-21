@@ -12,6 +12,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from utils.configuration import Configuration
 from utils.models import models
 
+# Import subgraphs
+from graphs.scalema_web3 import scalema_web3_subgraph
+
 
 class HumanQuery(BaseModel):  # Used to structure data
     """
@@ -74,7 +77,7 @@ def agent(state: MessagesState, config=RunnableConfig):
 
     # access model name through config passed in the Backend
     model_name = Configuration.from_runnable_config(config).model_name
-    node_model = models[model_name].bind_tools([HumanQuery])
+    node_model = models[model_name]
     response = node_model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
     return {"messages": [response]}
 
@@ -90,11 +93,16 @@ MODEL_SYSTEM_MESSAGE = (
 builder = StateGraph(MessagesState, config_schema=Configuration)
 
 builder.add_node(agent)
-builder.add_node(input_node)
+# builder.add_node(input_node)
+builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
+
+# builder.add_edge(START, "agent")
+# builder.add_conditional_edges("agent", should_continue)
+# builder.add_edge("input_node", "agent")
 
 builder.add_edge(START, "agent")
-builder.add_conditional_edges("agent", should_continue)
-builder.add_edge("input_node", "agent")
+builder.add_edge("agent", "scalema_web3_subgraph")
+builder.add_edge("scalema_web3_subgraph", END)
 
 # Compile the graph
 checkpointer = MemorySaver()
