@@ -5,17 +5,19 @@ from datetime import datetime
 from uuid import uuid4
 
 # Import Langgraph
-from langchain_core.messages import SystemMessage, HumanMessage, merge_message_runs
+from langchain_core.messages import SystemMessage, merge_message_runs
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.store.base import BaseStore
-from langgraph.types import interrupt
 from trustcall import create_extractor
 
 # Import utility functions
 from utils.configuration import Configuration
 from utils.trustcall import Spy, extract_tool_info
 from utils.models import models
+
+# Import subgraphs
+from graphs.input_handling import input_handler_subgraph, InputState
 
 
 # Tools
@@ -26,13 +28,14 @@ class ToolCall(TypedDict):
     tool_type: Literal["retry_proposal", "finalize_proposal"]
 
 
-def handler_decision(state: MessagesState) -> Literal["proposal_helper", "exit", END]:
+def handler_decision(state: MessagesState) -> Literal["proposal_helper", "exit", END]:  # type: ignore
     """
         Contains decisions for the next node to be called in the project proposal process.
     """
 
     tool_calls = state["messages"][-1].tool_calls
-    # If there is no function call, then finish
+
+    # WARNING: this should never be returned unless a use case wasn't handled by the handler.
     if not tool_calls:
         return END
 
@@ -46,6 +49,10 @@ def handler_decision(state: MessagesState) -> Literal["proposal_helper", "exit",
 
 
 # Schema
+class OverallState(InputState):
+    pass
+
+
 class Project(BaseModel):
     """
         This is the schema format for a project.
@@ -121,7 +128,7 @@ def proposal_helper_node(state: MessagesState, config: RunnableConfig, store: Ba
     return {"messages": [message]}
 
 
-def project_agent(state: MessagesState, config: RunnableConfig, store: BaseStore):
+def project_agent(state: MessagesState, config: RunnableConfig, store: BaseStore) -> InputState:
     """
         Handles in summarizing the information from the project schema. Processes that information
         using the agent and responds accordingly.
@@ -139,27 +146,7 @@ def project_agent(state: MessagesState, config: RunnableConfig, store: BaseStore
 
     FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=current_proposal_details)
     response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + state["messages"])
-    return {"messages": [response]}
-
-
-def input_helper(state: MessagesState):
-    """
-        Helper node used for receiving the User's response for HITL.
-    """
-    user_response = interrupt("")
-    temporary_user_input = HumanMessage(content=user_response)
-
-    return {"messages": [temporary_user_input]}
-
-
-def interrupt_handler(state: MessagesState, config: RunnableConfig):
-    """
-        Handles the previous user input and provides instructions for the next tool call.
-    """
-    model_name = Configuration.from_runnable_config(config).model_name
-    node_model = models[model_name].bind_tools([ToolCall], parallel_tool_calls=False)
-    response = node_model.invoke([SystemMessage(content=INTERRUPT_HANDLER_MESSAGE)] + [state["messages"][-1]])
-    return {"messages": [response]}
+    return {"messages": [response], "tools": [ToolCall], "handler_message": INTERRUPT_HANDLER_MESSAGE}
 
 
 def exit_handler(state: MessagesState):
@@ -204,19 +191,17 @@ INTERRUPT_HANDLER_MESSAGE = (
 
 
 # Initialize Graph
-subgraph_builder = StateGraph(MessagesState, config_schema=Configuration)
+subgraph_builder = StateGraph(OverallState, config_schema=Configuration)
 
 subgraph_builder.add_node("proposal_helper", proposal_helper_node)
 subgraph_builder.add_node("project_agent", project_agent)
-subgraph_builder.add_node("input", input_helper)
-subgraph_builder.add_node("handler", interrupt_handler)
+subgraph_builder.add_node("input_handler", input_handler_subgraph)
 subgraph_builder.add_node("exit", exit_handler)
 
 subgraph_builder.add_edge(START, "proposal_helper")
 subgraph_builder.add_edge("proposal_helper", "project_agent")
-subgraph_builder.add_edge("project_agent", "input")
-subgraph_builder.add_edge("input", "handler")
+subgraph_builder.add_edge("project_agent", "input_handler")
 subgraph_builder.add_edge("exit", END)
-subgraph_builder.add_conditional_edges("handler", handler_decision)
+subgraph_builder.add_conditional_edges("input_handler", handler_decision)
 
 scalema_web3_subgraph = subgraph_builder.compile()

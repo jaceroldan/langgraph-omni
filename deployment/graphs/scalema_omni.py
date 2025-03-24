@@ -23,7 +23,7 @@ class ToolCall(TypedDict):
     tool_type: Literal["proposal"]
 
 
-def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph", END]:
+def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph", END]:  # type: ignore
     """
         Decide on which tool to use
     """
