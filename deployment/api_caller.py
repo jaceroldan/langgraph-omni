@@ -57,7 +57,6 @@ def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_ti
 
     params = {
         "search_key": "",
-        "top": 0,
         "due_date_flag": "Week",
         "sort_field": "-task__date_created",
         "size_per_request": 10,
