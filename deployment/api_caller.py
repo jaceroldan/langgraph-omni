@@ -1,5 +1,6 @@
 import requests
 import urllib.parse
+import json
 
 VITE_LOCALHOST = "http://host.docker.internal:8000"
 
@@ -44,3 +45,44 @@ def create_card(auth_token, data: dict):
     }
     response = requests.post(url, data=data, headers=headers)
     return response.status_code
+
+
+def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_timezone):
+    headers = {
+        "Authorization": auth_token,
+        "X-Timezone": x_timezone
+    }
+    url = f"{VITE_LOCALHOST}/api-sileo/v4/hqzen/task-assignments/filter/"
+    url2 = f"{VITE_LOCALHOST}/api-sileo/v1/ai/langgraph-task-duration-estimation/filter/"
+
+    params = {
+        "search_key": "",
+        "due_date_flag": "Week",
+        "sort_field": "-task__date_created",
+        "size_per_request": 10,
+        "assignee_id": user_profile_pk,
+        "workforce_id": 49
+    }
+
+    query_string = urllib.parse.urlencode(params)
+    full_url = f"{url}?{query_string}"
+    response = requests.get(full_url, headers=headers)
+    response_json = response.json()
+
+    task_names = [
+        item["task"]["title"] for item in response_json["data"]["data"]]
+
+    estimates = None
+
+    if task_names:
+        estimate_parameters = {
+            "user_profile_pk": user_profile_pk,
+            "task_names":  json.dumps(task_names),
+            "n_similar_task_count": 10
+        }
+        params = urllib.parse.urlencode(estimate_parameters)
+        fetch_estimates = f"{url2}?{params}"
+        estimates = requests.get(fetch_estimates, headers=headers)
+        estimates = estimates.json()
+    # Output response
+    return estimates
