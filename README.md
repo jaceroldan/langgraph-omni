@@ -49,19 +49,19 @@
     pip install -r requirements.txt
     ```
 
-7. Create an image for your deployment
+7. Create an image for your deployment (Always do this every time there is a new change.)
 
     ```cmd
     langgraph build -t my-image
     ```
 
-8. If everything is working, lauch the deployment. (If you already built the image, just do this command immediately)
+8. If everything is working, launch the deployment.
 
     ```cmd
     docker-compose up
     ```
 
-9. OPTIONAL: to shutdown the container, do the following in terminal:
+9. To shutdown the container, do the following in terminal:
 
     ```cmd
     docker-compose down
