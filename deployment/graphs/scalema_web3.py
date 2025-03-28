@@ -134,6 +134,8 @@ PROPOSAL_AGENT_MESSAGE = (
     "the user about this and reassure them that they can readjust if needed."
     "\n\t\t7. minimum_viable_fund"
     "\n\t\t8. funding_date_completion"
+    "\n\t-For 9-11, always consider the context of the proposal and suggest possible important items for the "
+    "user to provide."
     "\n\t\t9. key_milestone_dates"
     "\n\t\t10. financial_documents"
     "\n\t\t11. legal_documents"
@@ -141,9 +143,9 @@ PROPOSAL_AGENT_MESSAGE = (
     "do not show fields that are missing. Once everything has been filled, show the complete "
     "proposal to the user and ask if it is correct or if they want to add more information or "
     "for you to refine the proposal."
-    "\nLastly, ask the user if they would like to save it as a draft and refine it later or to submit "
-    "the proposal for review by Scalema Admins."
-    "\nAlways be friendly and include a short comment on the user's response but be professional. "
+    "\nLastly, if the user is satisfied with the current proposal, ask the user if they would like to "
+    "save it as a draft and refine it later or to submit it for review by Scalema Admins."
+    "\n\nAlways be friendly and include a short comment on the user's response but be professional. "
 )
 
 INTERRUPT_HANDLER_MESSAGE = (
