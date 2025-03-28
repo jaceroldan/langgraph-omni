@@ -16,15 +16,16 @@ from utils.models import models
 class InputState(MessagesState):
     tools: List[Callable]
     handler_message: str
+    extra_data: dict
 
 
 # Nodes
-def input_helper(state: InputState):
+def input_helper(state: InputState) -> InputState:
     """
         Helper node used for receiving the User's response for HITL.
     """
     user_response = interrupt("")
-    return {"messages": [HumanMessage(content=user_response)]}
+    return {**state, "messages": [HumanMessage(content=user_response)]}
 
 
 def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesState:

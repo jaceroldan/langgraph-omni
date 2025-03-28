@@ -1,7 +1,7 @@
 from langgraph.graph import MessagesState
 
 
-def exit_handler(state: MessagesState):
+def tool_handler(state: MessagesState):
     """
         Fake node to used for exiting the subgraph.
         Only use this node whenever there is a tool call without a tool message.

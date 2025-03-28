@@ -15,12 +15,6 @@ class Project(BaseModel):
         "None",
         description="Description of the project itself. This can include the location, amenities, and other details."
     )
-
-
-class ExtendedProject(Project):
-    """
-        Includes all significant details of a project including ones in the Project schema.
-    """
     location: Optional[str] = Field("None", description="Location of the project. (eg. Legazpi Village, Makati)")
     funding_goal: Optional[str] = Field("None", description="Amount needed to complete the project. (eg. PHP 10M)")
     available_shares: Optional[str] = Field(
@@ -37,4 +31,4 @@ class ProjectState(InputState):
         Used to transfer project information in-between subgraphs.
         =@> Currently does nothing.
     """
-    pass
+    project_details: Project
