@@ -37,7 +37,10 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
     handler_message = state["handler_message"]
 
     node_model = models[model_name].bind_tools(tools, parallel_tool_calls=False)
-    response = node_model.invoke([SystemMessage(content=handler_message)] + [state["messages"][-1]])
+
+    maximum_history_lookup = 4
+    response = node_model.invoke(
+        [SystemMessage(content=handler_message)] + state["messages"][-maximum_history_lookup:])
     return {"messages": [response]}
 
 
