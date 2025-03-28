@@ -23,7 +23,7 @@ class ToolCall(TypedDict):
     """
         Decision on which tool to use
     """
-    tool_type: Literal["retry", "next"]
+    tool_type: Literal["retry", "finalize"]
 
 
 def handler_decision(state: MessagesState) -> Literal["project_helper", "exit", END]:  # type: ignore
@@ -40,7 +40,7 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "exit", 
     match (tool_calls[0]["args"]["tool_type"]):
         case "retry":
             return "project_helper"
-        case "next":
+        case "finalize":
             return "exit"
         case _:
             return "exit"
@@ -125,35 +125,37 @@ PROPOSAL_AGENT_MESSAGE = (
     "\n\t\t3. description"
     "\n\t-After 1-3 has been filled, show only the current title, project_type, and description to the user. "
     "Ask them if the information is correct and if they would like to refine it further."
-    "Once they confirm, continue with filling the next fields sequentially:"
+    "Once they confirm that it is correct and have not explicitly said to finish, continue with filling "
+    "the next fields sequentially:"
     "\n\t\t4. location"
     "\n\t\t5. funding_goal"
     "\n\t\t6. available_shares"
+    "\n\t-After 5-6 has been filled, calculate the per-share price using funding_goal and available_shares. Inform "
+    "the user about this and reassure them that they can readjust if needed."
     "\n\t\t7. minimum_viable_fund"
-    "\n\t\t8. completion_date"
-    "\n\t\t9. funding_date_completion"
+    "\n\t\t8. funding_date_completion"
+    "\n\t\t9. key_milestone_dates"
+    "\n\t\t10. financial_documents"
+    "\n\t\t11. legal_documents"
     "\nIf the user asks to see the current progress, only show fields that are filled, "
     "do not show fields that are missing. Once everything has been filled, show the complete "
     "proposal to the user and ask if it is correct or if they want to add more information or "
-    "for you to refine the proposal. Always be friendly and include a short comment on the "
-    "user's response but be professional. "
+    "for you to refine the proposal."
+    "\nLastly, ask the user if they would like to save it as a draft and refine it later or to submit "
+    "the proposal for review by Scalema Admins."
+    "\nAlways be friendly and include a short comment on the user's response but be professional. "
 )
 
 INTERRUPT_HANDLER_MESSAGE = (
     "The following is the current state of the proposal:"
     "\n\n{proposal_details}"
-    "Your only instruction is to carefully reason out the user's messages and react accordingly. "
-    "You are equipped with a tool, you are not allowed to respond to the user but you can only use the tool."
+    "\nYour only instruction is to carefully reason out the user's messages and react accordingly. "
+    "You are equipped with a tool, you are not allowed to respond to the user and you can only use the tool."
     "\n\nGuidelines for tool usage:"
     "\n\t- If the user explicitly says not to continue, end the conversation by calling "
-    "ToolCall with the 'next' argument."
-    "\n\t- If all fields of the proposal is already filled and the user is satisfied, "
-    "continue the conversation by calling ToolCall with the 'next' argument."
-    "\n\t- If the user requests to make changes or provides new information, call "
-    "ToolCall with the 'retry' argument."
-    "\n\t- If the user asks you to refine or provide information for the project, "
-    "call ToolCall with the 'retry' argument."
-    "\n\t- As default response, call ToolCall with the `retry` argument."
+    "ToolCall with the `finalize` argument."
+    "\n\t- If some fields of the proposal are still None, call ToolCall with the `retry` argument."
+    "\n\t- As default response, always call ToolCall with the `retry` argument."
 )
 
 
