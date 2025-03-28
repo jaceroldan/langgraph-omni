@@ -26,7 +26,7 @@ class ToolCall(TypedDict):
     tool_type: Literal["retry", "finalize"]
 
 
-def handler_decision(state: MessagesState) -> Literal["project_helper", "exit", END]:  # type: ignore
+def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_handler", END]:  # type: ignore
     """
         Contains decisions for the next node to be called in the project proposal process.
     """
@@ -41,9 +41,9 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "exit", 
         case "retry":
             return "project_helper"
         case "finalize":
-            return "exit"
+            return "tool_handler"
         case _:
-            return "exit"
+            return "tool_handler"
 
 
 # Nodes
