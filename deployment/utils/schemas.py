@@ -21,8 +21,22 @@ class Project(BaseModel):
         "None", description="Shares of the project available for investment. (eg. 500,000 shares)")
     minimum_viable_fund: Optional[str] = Field(
         "None", description="Minimum amount needed to proceed. (eg. PHP 5M - PHP 10M)")
-    completion_date: Optional[str] = Field("None", description="Estimated completion date of the project. (eg. 2025)")
     funding_date_completion: Optional[str] = Field("None", description="Date of completion for funding. (eg. 2023)")
+    key_milestone_dates: list[str] = Field(
+        description=("List of important date milestones that investors must take note of."
+                     "(eg. Groundbreaking - March 2025, Structure Completion - June 2026)"),
+        default_factory=list
+    )
+    financial_documents: list[str] = Field(
+        description=("List of relevant financial documents to strengthen the proposal. "
+                     "(eg. business plans, revenue projections"),
+        default_factory=list
+    )
+    legal_documents: list[str] = Field(
+        description=("List of relevant legal documents to ensure compliance with local regulations."
+                     "(eg. business registrations, land titles, permits)"),
+        default_factory=list
+    )
 
 
 # State Schemas
