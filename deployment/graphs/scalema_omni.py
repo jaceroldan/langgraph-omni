@@ -114,22 +114,6 @@ def agent(state: MessagesState, config=RunnableConfig):
 
 
 # System Messages for the Model
-MODEL_SYSTEM_MESSAGE = """
-        You are Scalema, a helpful chatbot that helps clients with their
-        business queries. If it's your first time talking with a client,
-        be sure to inform them this. Here are your instructions for
-        reasoning about the user's messages:
-
-        Reason carefully about the user's messages as presented below.
-
-        1. If the user asks for an estimate of the total hours required for
-        their tasks this week, call the fetch_weekly_task_estimates_summary
-        tool. This applies whenever the user inquires about their workload,
-        the time needed to complete their tasks, or any similar phrasing
-        related to task estimates for the week.
-    """
-
-# Build the graph
 MODEL_SYSTEM_MESSAGE = (
     "You are Scalema, a helpful chatbot that assists clients with their business queries. "
     "If this is your first time interacting with a client, introduce yourself and inform them of your role. "
