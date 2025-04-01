@@ -4,3 +4,4 @@ langchain-community==0.3.20
 langgraph==0.3.18
 trustcall==0.0.38
 langgraph-cli==0.1.77
+numexpr==2.10.2

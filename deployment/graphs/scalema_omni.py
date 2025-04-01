@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 
 from utils.api_caller import fetch_weekly_task_estimates
-from utils.utils import estimate_tasks_duration
+from utils.tools import estimate_tasks_duration
 
 # Import utility functions
 from utils.configuration import Configuration

@@ -6,6 +6,7 @@ from datetime import datetime
 from langchain_core.messages import SystemMessage, merge_message_runs
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.prebuilt import ToolNode
 from trustcall import create_extractor
 
 # Import utility functions
@@ -13,6 +14,7 @@ from utils.configuration import Configuration
 from utils.models import models
 from utils.nodes import tool_handler
 from utils.schemas import Project, ProjectState
+from utils.tools import calculator
 
 # Import subgraphs
 from graphs.input_handling import input_handler_subgraph
@@ -46,8 +48,24 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_ha
             return "tool_handler"
 
 
+def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execute_tool"]:  # type: ignore
+    """
+        Contains decisions for if the agent needs to use one of its tools or continue with asking
+        for user inputs.
+    """
+    tool_calls = state["messages"][-1].tool_calls
+
+    if not tool_calls:
+        return "input_handler"
+
+    for item in tool_calls:
+        if item["name"] == "calculator":
+            return "execute_tool"
+    return "input_handler"
+
+
 # Nodes
-def project_helper_node(state: MessagesState, config: RunnableConfig) -> ProjectState:
+def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectState:
     """
         Handles the tool call from the parent graph.
     """
@@ -55,7 +73,10 @@ def project_helper_node(state: MessagesState, config: RunnableConfig) -> Project
     model_name = configurable.model_name
     tool_name = "Project"
 
-    TRUSTCALL_FORMATTED_MESSAGE = TRUSTCALL_SYSTEM_MESSAGE.format(time=datetime.now().isoformat())
+    TRUSTCALL_FORMATTED_MESSAGE = TRUSTCALL_SYSTEM_MESSAGE.format(
+        time=datetime.now().isoformat(),
+        proposal_details=state.get("project_details", None)
+    )
     merged_messages = list(merge_message_runs(
             messages=[SystemMessage(content=TRUSTCALL_FORMATTED_MESSAGE)] + state["messages"][:-1]
     ))
@@ -92,8 +113,7 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
 
     configurable = Configuration.from_runnable_config(config)
     model_name = configurable.model_name
-    node_model = models[model_name]
-
+    node_model = models[model_name].bind_tools(agent_tools)
     project_details = state["project_details"]
 
     FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=project_details)
@@ -109,17 +129,22 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "Use parallel tool calls to handle updates and insertions simultaneously. "
     "Never provide data about the proposal that are not from the user's own messages."
     "\nSystem Time: {time}"
+    "The following is the current state of the proposal: \n{proposal_details}"
 )
 
 PROPOSAL_AGENT_MESSAGE = (
+    "\n# PROPOSAL GUIDELINES"
+    "\nYour only goal is to complete a proposal form using inputs from a user. You will be given the "
+    "current state of the proposal and you must base which instruction to follow using that information. "
     "The following is the current state of the proposal:"
-    "\n\n{proposal_details}"
+    "\n{proposal_details}"
+    "\n## MISSING FIELDS INSTRUCTIONS"
     "\n\nFollow the instructions below for missing fields:"
     "\n\t- Always ask for the title first, if possible."
     "\n\t- If the title is provided, provide some suggestions on the what kind of project (project_type) "
     "it is depending on the title. Ask the user for their input."
     "\n\t-Ask for information about each missing field individually until no more fields are empty."
-    "The fields should be filled by the user sequentially, the order being:"
+    "\nThe fields should be filled by the user sequentially, the order being:"
     "\n\t\t1. title"
     "\n\t\t2. project_type"
     "\n\t\t3. description"
@@ -130,8 +155,9 @@ PROPOSAL_AGENT_MESSAGE = (
     "\n\t\t4. location"
     "\n\t\t5. funding_goal"
     "\n\t\t6. available_shares"
-    "\n\t-After 5-6 has been filled, calculate the per-share price using funding_goal and available_shares. Inform "
-    "the user about this and reassure them that they can readjust if needed."
+    "\n\t-After 5-6 has been filled, calculate the per-share price by calling `calculator`. After "
+    "calculating, inform the user about this and reassure them that they can readjust if needed."
+    " Do not ask to continue unless they are alright about the share price then you can ask to continue."
     "\n\t\t7. minimum_viable_fund"
     "\n\t\t8. funding_date_completion"
     "\n\t-For 9-11, always consider the context of the proposal and suggest possible important items for the "
@@ -145,7 +171,7 @@ PROPOSAL_AGENT_MESSAGE = (
     "for you to refine the proposal."
     "\nLastly, before finishing, always ask the user if they would like to save it as a draft and refine "
     "it later or to submit it for review by Scalema Admins."
-    "\n\nAlways be friendly and include a short comment on the user's response but be professional. "
+    "\nAlways be friendly and include a short comment on the user's response but be professional. "
 )
 
 INTERRUPT_HANDLER_MESSAGE = (
@@ -165,6 +191,8 @@ INTERRUPT_HANDLER_MESSAGE = (
 )
 
 
+agent_tools = [calculator]
+
 # Initialize Graph
 subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
 
@@ -172,11 +200,13 @@ subgraph_builder.add_node("project_helper", project_helper_node)
 subgraph_builder.add_node("project_agent", project_agent)
 subgraph_builder.add_node("input_handler", input_handler_subgraph)
 subgraph_builder.add_node("tool_handler", tool_handler)
+subgraph_builder.add_node("execute_tool", ToolNode(agent_tools))
 
 subgraph_builder.add_edge(START, "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
-subgraph_builder.add_edge("project_agent", "input_handler")
-subgraph_builder.add_edge("tool_handler", END)
+subgraph_builder.add_conditional_edges("project_agent", agent_tool_decision)
+subgraph_builder.add_edge("execute_tool", "project_agent")
 subgraph_builder.add_conditional_edges("input_handler", handler_decision)
+subgraph_builder.add_edge("tool_handler", END)
 
 scalema_web3_subgraph = subgraph_builder.compile()
