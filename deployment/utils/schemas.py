@@ -43,6 +43,5 @@ class Project(BaseModel):
 class ProjectState(InputState):
     """
         Used to transfer project information in-between subgraphs.
-        =@> Currently does nothing.
     """
     project_details: Project
