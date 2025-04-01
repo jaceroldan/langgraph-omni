@@ -43,16 +43,16 @@ def fetch_weekly_task_estimates_summary(
 
     configuration = Configuration.from_runnable_config(config)
     auth_token = configuration.auth_token
-    employment_id = configuration.employment_id
     job_position = configuration.job_position
     user_profile_pk = configuration.user_profile_pk
     x_timezone = configuration.x_timezone
+    workforce_id = configuration.workforce_id
 
     model_name = configuration.model_name
     node_model = models[model_name]
 
     response = fetch_weekly_task_estimates(
-        auth_token, employment_id, user_profile_pk, x_timezone)
+        auth_token, workforce_id, user_profile_pk, x_timezone)
 
     if response:
         response = response['data']

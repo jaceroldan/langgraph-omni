@@ -47,7 +47,7 @@ def create_card(auth_token, data: dict):
     return response.status_code
 
 
-def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_timezone):
+def fetch_weekly_task_estimates(auth_token, workforce_id, user_profile_pk, x_timezone):
     headers = {
         "Authorization": auth_token,
         "X-Timezone": x_timezone
@@ -61,7 +61,7 @@ def fetch_weekly_task_estimates(auth_token, employment_id, user_profile_pk, x_ti
         "sort_field": "-task__date_created",
         "size_per_request": 10,
         "assignee_id": user_profile_pk,
-        "workforce_id": 49
+        "workforce_id": workforce_id
     }
 
     query_string = urllib.parse.urlencode(params)
