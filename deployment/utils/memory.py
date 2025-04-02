@@ -12,7 +12,11 @@ from utils.configuration import Configuration, RunnableConfig
 from utils.tokenizer import get_tokenizer
 
 
-def load_memory(state: MessagesState, config: RunnableConfig):
+class MemoryState(MessagesState):
+    memories: List[str]
+
+
+def load_memory(state: MemoryState, config: RunnableConfig) -> MemoryState:
     """
         Loads memories for the current conversation.
     """
@@ -25,7 +29,7 @@ def load_memory(state: MessagesState, config: RunnableConfig):
     convo_str = tokenizer.decode(tokenizer.encode(convo_str)[:2048])
     recall_memories = search_recall_memories.invoke(convo_str, config)
     return {
-        "recall_memories": recall_memories
+        "memories": recall_memories
     }
 
 

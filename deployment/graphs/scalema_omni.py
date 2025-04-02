@@ -13,7 +13,7 @@ from utils.tools import estimate_tasks_duration
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import load_memory
+from utils.memory import load_memory, MemoryState
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -103,7 +103,7 @@ def fetch_weekly_task_estimates_summary(
         "tool_call_id": tool_calls[0]['id']}]}
 
 
-def agent(state: MessagesState, config: RunnableConfig):
+def agent(state: MemoryState, config: RunnableConfig):
     """
         Helps personalizes chatbot messages
     """
@@ -132,7 +132,7 @@ MODEL_SYSTEM_MESSAGE = (
 
 
 # Initialize Graph
-builder = StateGraph(MessagesState, config_schema=Configuration)
+builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
