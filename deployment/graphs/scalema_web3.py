@@ -55,9 +55,6 @@ def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execu
     """
     tool_calls = state["messages"][-1].tool_calls
 
-    if not tool_calls:
-        return "input_handler"
-
     for item in tool_calls:
         if item["name"] == "calculator":
             return "execute_tool"
