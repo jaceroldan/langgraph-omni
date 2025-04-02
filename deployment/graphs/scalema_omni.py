@@ -13,6 +13,7 @@ from utils.tools import estimate_tasks_duration
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
+from utils.memory import load_memory
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -136,12 +137,15 @@ builder = StateGraph(MessagesState, config_schema=Configuration)
 builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("fetch_weekly_task_estimates_summary", fetch_weekly_task_estimates_summary)
+builder.add_node("load_memory", load_memory)
 
 
-builder.add_edge(START, "agent")
+builder.add_edge(START, "load_memory")
+builder.add_edge("load_memory", "agent")
 builder.add_conditional_edges("agent", choose_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
 
 checkpointer = MemorySaver()
+
 graph = builder.compile(checkpointer=checkpointer)

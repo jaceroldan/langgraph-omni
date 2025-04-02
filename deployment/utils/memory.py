@@ -5,8 +5,28 @@ from langchain_core.tools import tool
 from langchain_core.documents import Document
 from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_openai.embeddings import OpenAIEmbeddings
+from langgraph.graph import MessagesState
+from langchain_core.messages import get_buffer_string
 
 from utils.configuration import Configuration, RunnableConfig
+from utils.tokenizer import get_tokenizer
+
+
+def load_memory(state: MessagesState, config: RunnableConfig):
+    """
+        Loads memories for the current conversation.
+    """
+
+    configuration = Configuration.from_runnable_config(config)
+    model_name = configuration.model_name
+    tokenizer = get_tokenizer(model_name)
+
+    convo_str = get_buffer_string(state["messages"])
+    convo_str = tokenizer.decode(tokenizer.encode(convo_str)[:2048])
+    recall_memories = search_recall_memories.invoke(convo_str, config)
+    return {
+        "recall_memories": recall_memories
+    }
 
 
 @tool
