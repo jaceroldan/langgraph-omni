@@ -102,7 +102,7 @@ def fetch_weekly_task_estimates_summary(
         "tool_call_id": tool_calls[0]['id']}]}
 
 
-def agent(state: MessagesState, config=RunnableConfig):
+def agent(state: MessagesState, config: RunnableConfig):
     """
         Helps personalizes chatbot messages
     """
