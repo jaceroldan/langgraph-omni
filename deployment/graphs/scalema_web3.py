@@ -44,8 +44,6 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_ha
             return "project_helper"
         case "finalize":
             return "tool_handler"
-        case _:
-            return "tool_handler"
 
 
 def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execute_tool"]:  # type: ignore
