@@ -6,6 +6,7 @@ from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.store.postgres import PostgresStore
 from langgraph.prebuilt import ToolNode
 
 from psycopg import Connection
@@ -182,4 +183,7 @@ with Connection.connect(DB_URI, **connection_kwargs) as conn:
     checkpointer = PostgresSaver(conn)
     checkpointer.setup()
 
-graph = builder.compile(checkpointer=checkpointer)
+    store = PostgresStore(conn)
+    store.setup()
+
+    graph = builder.compile(checkpointer=checkpointer, store=store)
