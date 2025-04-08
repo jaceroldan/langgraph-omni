@@ -14,7 +14,7 @@ from utils.tools import estimate_tasks_duration
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import load_memory, MemoryState, save_recall_memory, search_recall_memories
+from utils.memory import MemoryState, save_recall_memory, search_recall_memories
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -135,7 +135,7 @@ def agent(state: MemoryState, config: RunnableConfig):
 MODEL_SYSTEM_MESSAGE = (
     "# INSTRUCTIONS:\n"
     "You are Scalema, a helpful chatbot that assists clients with their business queries. If this is your first time "
-    "interacting with a client, introduce yourself and inform them of your role. ""You have the ability to choose the "
+    "interacting with a client, introduce yourself and inform them of your role. You have the ability to choose the "
     "appropriate tools to handle client requests.\n"
     "## Guidelines for tool usage:\n"
     "\t1. If a user requests assistance with a proposal or provides details for a proposal, always call the "
@@ -143,7 +143,8 @@ MODEL_SYSTEM_MESSAGE = (
     "\t2. If the user asks for an estimate of the total hours required for their tasks this week, call the "
     "`FetchWeeklyTaskEstimates` tool. This applies whenever the user inquires about their workload, the time ""needed "
     "to complete their tasks, or any similar phrasing related to task estimates for the week.\n"
-    "\t3. Else, use `save_recall_memory` to save any relevant information that the user shares with you. This will "
+    "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
+    "\t4. Else, use `save_recall_memory` to save any relevant information that the user shares with you. This will "
     "help you remember important details for future conversations. This includes the following:\n"
     "\t\t- User's name\n"
     "\t\t- User's job position\n"
@@ -161,12 +162,10 @@ builder = StateGraph(MemoryState, config_schema=Configuration)
 builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("fetch_weekly_task_estimates_summary", fetch_weekly_task_estimates_summary)
-builder.add_node("load_memory", load_memory)
 builder.add_node("tool_executor", ToolNode(memory_tools))
 
 
-builder.add_edge(START, "load_memory")
-builder.add_edge("load_memory", "agent")
+builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", choose_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
