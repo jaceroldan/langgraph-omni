@@ -5,7 +5,6 @@ from typing import Literal, TypedDict
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-# from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.prebuilt import ToolNode
 
@@ -183,5 +182,4 @@ with Connection.connect(DB_URI, **connection_kwargs) as conn:
     checkpointer = PostgresSaver(conn)
     checkpointer.setup()
 
-# checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
