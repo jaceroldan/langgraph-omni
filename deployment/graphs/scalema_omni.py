@@ -5,16 +5,19 @@ from typing import Literal, TypedDict
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
+# from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.prebuilt import ToolNode
 
-from utils.api_caller import fetch_weekly_task_estimates
-from utils.tools import estimate_tasks_duration
+from psycopg import Connection
 
 # Import utility functions
+from utils.api_caller import fetch_weekly_task_estimates
+from utils.tools import estimate_tasks_duration
 from utils.configuration import Configuration
 from utils.models import models
 from utils.memory import MemoryState, save_recall_memory, search_recall_memories
+from utils.constants import DB_URI
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -171,6 +174,14 @@ builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
 builder.add_edge("tool_executor", "agent")
 
-checkpointer = MemorySaver()
+connection_kwargs = {
+    "autocommit": True,
+    "prepare_threshold": 0,
+}
 
+with Connection.connect(DB_URI, **connection_kwargs) as conn:
+    checkpointer = PostgresSaver(conn)
+    checkpointer.setup()
+
+# checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
