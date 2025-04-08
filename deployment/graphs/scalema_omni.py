@@ -20,11 +20,16 @@ from graphs.scalema_web3 import scalema_web3_subgraph
 
 
 # Tools
-class ToolCall(TypedDict):
+class CreateProposal(TypedDict):
     """
-        Decision on which tool to use
+        Creates a proposal. Redirects to the next step in the proposal process.
     """
-    tool_type: Literal["proposal", "weekly_tasks_summary"]
+
+
+class FetchWeeklyTaskEstimates(TypedDict):
+    """
+        Fetch weekly task estimates
+    """
 
 
 def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
@@ -39,10 +44,10 @@ def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
     if not tool_calls:
         return END
 
-    match (tool_calls[0]["args"]["tool_type"]):
-        case "proposal":
+    match (tool_calls[0]["name"]):
+        case "CreateProposal":
             return "scalema_web3_subgraph"
-        case "weekly_tasks_summary":
+        case "FetchWeeklyTaskEstimates":
             return "fetch_weekly_task_estimates_summary"
         case _:
             return END
@@ -109,7 +114,10 @@ def agent(state: MemoryState, config: RunnableConfig):
     """
 
     model_name = Configuration.from_runnable_config(config).model_name
-    node_model = models[model_name].bind_tools([ToolCall], parallel_tool_calls=False)
+
+    tools = [CreateProposal, FetchWeeklyTaskEstimates]
+
+    node_model = models[model_name].bind_tools(tools, parallel_tool_calls=False)
     response = node_model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
     return {"messages": [response]}
 
@@ -121,10 +129,10 @@ MODEL_SYSTEM_MESSAGE = (
     "You have the ability to choose the appropriate tools to handle client requests."
     "\n\nGuidelines for tool usage:"
     "\n\t1. If a user requests assistance with a proposal or provides details for one, "
-    "always call ToolCall with the 'proposal' argument."
-    "\n\t2. If the user asks for an estimate of the total hours required for their tasks this week, call ToolCall "
-    "with the 'weekly_tasks_summary' argument. This applies whenever the user inquires about their workload, "
-    "the time needed to complete their tasks, or any similar phrasing related to task estimates for the week."
+    "always call the `CreateProposal` tool."
+    "\n\t2. If the user asks for an estimate of the total hours required for their tasks this week, call the "
+    "`FetchWeeklyTaskEstimates` tool. This applies whenever the user inquires about their workload, the time "
+    "needed to complete their tasks, or any similar phrasing related to task estimates for the week."
     "\n\t3. Do not provide examples unless explicitly asked."
     "\n\nWhen using tools, do not inform the user that a tool has been called. Instead, "
     "respond naturally as if the action was performed seamlessly."
