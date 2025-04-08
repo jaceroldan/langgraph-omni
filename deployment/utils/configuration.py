@@ -12,6 +12,8 @@ class Configuration:
     thread_id: str
     model_name: str = "gpt-4o"
 
+    model_history_length: int = 5
+
     user_profile_pk: str = ""
     employment_id: str = ""
     workforce_id: Optional[str] = None
