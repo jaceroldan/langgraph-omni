@@ -5,6 +5,21 @@ from graphs.input_handling import InputState
 
 
 # Tool Schemas
+class Choice(BaseModel):
+    text: Optional[str] = Field(description="Text that the user sees.")
+    response: Optional[str] = Field(description="Text that is sent by the choice.")
+
+
+class Choices(BaseModel):
+    """
+        Contains choices extracted from LLM message and to be sent to the frontend.
+    """
+    choice_selection: list[Choice] = Field(
+        description="List of responses the a user may answer with given a question.",
+        default_factory=list
+    )
+
+
 class Project(BaseModel):
     """
         This is the schema format for a project.
