@@ -106,17 +106,12 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     user_profile_pk = configuration.user_profile_pk
     x_timezone = configuration.x_timezone
     workforce_id = configuration.workforce_id
-
-    print("auth_token:", auth_token)
-
     model_name = configuration.model_name
     node_model = models[model_name]
 
-    print("configurations")
     response = fetch_weekly_task_estimates(
         auth_token, workforce_id, user_profile_pk, x_timezone)
 
-    print("response", response)
     if response:
         response = response['data']
         ai_estimation_hours = estimate_tasks_duration(
@@ -139,5 +134,4 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
         completing their work for the week and encourage them to relax.
     """.format(ai_estimation_hours=ai_estimation_hours)
 
-    print("output", response)
     return response
