@@ -155,7 +155,7 @@ TRUSTCALL_SYSTEM_MESSAGE = (
 CHOICE_EXTRACTOR_MESSAGE = (
     "# INSTRUCTIONS:\n"
     "Given an input text, perform the following steps:\n"
-    "1. If the text is asking for a name, title, or value of something, return an empty list.\n"
+    "1. If the text is asking for a name, title, number, or value of something, return an empty list.\n"
     "2. Carefully check if the text contains a question that is answerable strictly and only by "
     "'Yes' or 'No'.\n"
     "\t- If so, output exactly ['Yes', 'No'] as the answer choices.\n"
