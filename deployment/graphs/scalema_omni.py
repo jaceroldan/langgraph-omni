@@ -12,12 +12,11 @@ from langgraph.prebuilt import ToolNode
 from psycopg import Connection
 
 # Import utility functions
-from utils.api_caller import fetch_weekly_task_estimates
-from utils.tools import estimate_tasks_duration
 from utils.configuration import Configuration
 from utils.models import models
 from utils.memory import MemoryState, save_recall_memory, search_recall_memories
 from utils.constants import DB_URI
+from utils.estimates import fetch_weekly_task_estimates_summary
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -26,18 +25,11 @@ from graphs.scalema_web3 import scalema_web3_subgraph
 # Tools
 class CreateProposal(TypedDict):
     """
-        Creates a proposal. Redirects to the next step in the proposal process.
-    """
-
-
-class FetchWeeklyTaskEstimates(TypedDict):
-    """
-        Fetch weekly task estimates
+        Creates a proposal. Routes to `scalema_web3_subgraph` for proposal creation.
     """
 
 
 def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
-                                                 "fetch_weekly_task_estimates_summary",
                                                  "tool_executor",
                                                  END]:  # type: ignore
     """
@@ -52,9 +44,7 @@ def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
     match (tool_calls[0]["name"]):
         case "CreateProposal":
             return "scalema_web3_subgraph"
-        case "FetchWeeklyTaskEstimates":
-            return "fetch_weekly_task_estimates_summary"
-        case "save_recall_memory" | "search_recall_memories":
+        case "save_recall_memory" | "search_recall_memories" | "fetch_weekly_task_estimates_summary":
             return "tool_executor"
         case _:
             return END
@@ -63,58 +53,6 @@ def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
 
 
 # Nodes
-def fetch_weekly_task_estimates_summary(
-        state: MessagesState, config: RunnableConfig):
-    """
-        Provides a summary of the estimated hours required for
-        the user's tasks for the week. Use this tool whenever the
-        user asks about their weekly task estimates. Call
-        "fetch_weekly_task_estimates_summary" to retrieve
-        this information.
-    """
-
-    configuration = Configuration.from_runnable_config(config)
-    auth_token = configuration.auth_token
-    job_position = configuration.job_position
-    user_profile_pk = configuration.user_profile_pk
-    x_timezone = configuration.x_timezone
-    workforce_id = configuration.workforce_id
-
-    model_name = configuration.model_name
-    node_model = models[model_name]
-
-    response = fetch_weekly_task_estimates(
-        auth_token, workforce_id, user_profile_pk, x_timezone)
-
-    if response:
-        response = response['data']
-        ai_estimation_hours = estimate_tasks_duration(
-            node_model,
-            response['target_task_names'],
-            response['similar_task_names'],
-            job_position,
-            response['years_of_experience'],
-        )
-    else:
-        ai_estimation_hours = 0
-
-    response = """
-        Below is the estimated number of hours required to complete the tasks
-        the system has generated for the user:
-        {ai_estimation_hours}
-
-        Discuss with them how many hours are needed for the current week's
-        tasks. If there are no tasks remaining, congratulate them on
-        completing their work for the week and encourage them to relax.
-    """.format(ai_estimation_hours=ai_estimation_hours)
-
-    tool_calls = state["messages"][-1].tool_calls
-    return {"messages": [{
-        "role": "tool",
-        "content": response,
-        "tool_call_id": tool_calls[0]['id']}]}
-
-
 def agent(state: MemoryState, config: RunnableConfig):
     """
         Helps personalizes chatbot messages
@@ -124,9 +62,7 @@ def agent(state: MemoryState, config: RunnableConfig):
     model_name = configuration.model_name
     model_history_length = configuration.model_history_length
 
-    tools = [CreateProposal, FetchWeeklyTaskEstimates] + memory_tools
-
-    node_model = models[model_name].bind_tools(tools, parallel_tool_calls=False)
+    node_model = models[model_name].bind_tools(agent_tools + node_tools, parallel_tool_calls=False)
 
     messages = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"][-model_history_length:]
     response = node_model.invoke(messages)
@@ -144,8 +80,9 @@ MODEL_SYSTEM_MESSAGE = (
     "\t1. If a user requests assistance with a proposal or provides details for a proposal, always call the "
     "`CreateProposal` tool.\n"
     "\t2. If the user asks for an estimate of the total hours required for their tasks this week, call the "
-    "`FetchWeeklyTaskEstimates` tool. This applies whenever the user inquires about their workload, the time ""needed "
-    "to complete their tasks, or any similar phrasing related to task estimates for the week.\n"
+    "`fetch_weekly_task_estimates_summary` tool. This applies whenever the user inquires "
+    "about their workload, the time needed to complete their tasks, or any similar phrasing related to task estimates "
+    "for the week.\n"
     "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
     "\t4. Else, use `save_recall_memory` to save any relevant information that the user shares with you. This will "
     "help you remember important details for future conversations. This includes the following:\n"
@@ -158,20 +95,19 @@ MODEL_SYSTEM_MESSAGE = (
 
 
 # Initialize Graph
-memory_tools = [save_recall_memory, search_recall_memories]
+agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
+node_tools = [CreateProposal]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
-builder.add_node("fetch_weekly_task_estimates_summary", fetch_weekly_task_estimates_summary)
-builder.add_node("tool_executor", ToolNode(memory_tools))
+builder.add_node("tool_executor", ToolNode(agent_tools))
 
 
 builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", choose_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
-builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
 builder.add_edge("tool_executor", "agent")
 
 connection_kwargs = {
