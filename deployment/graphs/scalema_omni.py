@@ -29,9 +29,10 @@ class CreateProposal(TypedDict):
     """
 
 
-def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
-                                                 "tool_executor",
-                                                 END]:  # type: ignore
+def continue_to_tool(state: MessagesState) -> Literal[
+                                                "scalema_web3_subgraph",
+                                                "tool_executor",
+                                                END]:  # type: ignore
     """
         Decide on which tool to use
     """
@@ -41,14 +42,17 @@ def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
     if not tool_calls:
         return END
 
-    match (tool_calls[0]["name"]):
+    tool_name = tool_calls[0]["name"]
+    route_to_nodes = []
+    match tool_name:
         case "CreateProposal":
-            return "scalema_web3_subgraph"
-        case "save_recall_memory" | "search_recall_memories" | "fetch_weekly_task_estimates_summary":
-            return "tool_executor"
+            route_to_nodes.append("scalema_web3_subgraph")
+        case _ if tool_name in [tool.get_name() for tool in agent_tools]:
+            route_to_nodes.append("tool_executor")
         case _:
             return END
 
+    return route_to_nodes
 # Schemas
 
 
@@ -62,7 +66,7 @@ def agent(state: MemoryState, config: RunnableConfig):
     model_name = configuration.model_name
     model_history_length = configuration.model_history_length
 
-    node_model = models[model_name].bind_tools(agent_tools + node_tools, parallel_tool_calls=False)
+    node_model = models[model_name].bind_tools(agent_tools + node_tools)
 
     messages = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"][-model_history_length:]
     response = node_model.invoke(messages)
@@ -84,13 +88,13 @@ MODEL_SYSTEM_MESSAGE = (
     "about their workload, the time needed to complete their tasks, or any similar phrasing related to task estimates "
     "for the week.\n"
     "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
-    "\t4. Else, use `save_recall_memory` to save any relevant information that the user shares with you. This will "
+    "\t4. Always use `save_recall_memory` to save any relevant information that the user shares with you. This will "
     "help you remember important details for future conversations. This includes the following:\n"
     "\t\t- User's name\n"
     "\t\t- User's job position\n"
-    "\t\t- The tools the user has used\n"
-    "When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the action "
-    "was performed seamlessly."
+    "\t5. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
+    "action was performed seamlessly.\n"
+
 )
 
 
@@ -104,9 +108,8 @@ builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
 
-
 builder.add_edge(START, "agent")
-builder.add_conditional_edges("agent", choose_tool)
+builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("tool_executor", "agent")
 
