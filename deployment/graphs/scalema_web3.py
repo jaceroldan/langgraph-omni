@@ -13,7 +13,7 @@ from trustcall import create_extractor
 from utils.configuration import Configuration
 from utils.models import models
 from utils.nodes import tool_handler
-from utils.schemas import Project, ProjectState
+from utils.schemas import Project, ProjectState, Choices
 from utils.tools import calculator
 
 # Import subgraphs
@@ -46,7 +46,7 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_ha
             return "tool_handler"
 
 
-def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execute_tool"]:  # type: ignore
+def agent_tool_decision(state: MessagesState) -> Literal["post_processor", "execute_tool"]:  # type: ignore
     """
         Contains decisions for if the agent needs to use one of its tools or continue with asking
         for user inputs.
@@ -56,7 +56,7 @@ def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execu
     for item in tool_calls:
         if item["name"] == "calculator":
             return "execute_tool"
-    return "input_handler"
+    return "post_processor"
 
 
 # Nodes
@@ -115,16 +115,50 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     FORMATTED_HANDLER_MESSAGE = INTERRUPT_HANDLER_MESSAGE.format(proposal_details=project_details)
 
     response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + state["messages"])
+
     return {"messages": [response], "tools": [ToolCall], "handler_message": FORMATTED_HANDLER_MESSAGE}
+
+
+def post_processing_node(state: ProjectState, config: RunnableConfig) -> ProjectState:
+    """
+        Currently handles extraction of choices from the previous node.
+    """
+
+    # configurable = Configuration.from_runnable_config(config)
+    # model_name = configurable.model_name
+
+    # choice_extractor = create_extractor(
+    #     models[model_name],
+    #     tools=[Choices],
+    #     tool_choice="choices",
+    #     enable_inserts=True
+    # )
+    # result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE), state["messages"][-1]])
+    # print("\n\n")
+    # print("extracted_choices:", result)
+    # print("\n\n")
+
+    # dump = result["responses"][0].model_dump(mode="python")
+    # print("\n\n")
+    # print("extracted_choices:", dump)
+    # print("\n\n")
+
+    return {**state, "extra_data": {"choices": []}}
 
 
 TRUSTCALL_SYSTEM_MESSAGE = (
     "Your only instruction is to reflect on the interaction and call the appropriate tool. "
     "Always use the provided tool to retain any necessary information. "
     "Use parallel tool calls to handle updates and insertions simultaneously. "
-    "Never provide data about the proposal that are not from the user's own messages."
+    "Never provide data about the proposal that is not from the user's own messages."
     "\nSystem Time: {time}"
     "The following is the current state of the proposal: \n{proposal_details}"
+)
+
+CHOICE_EXTRACTOR_MESSAGE = (
+    "Given a text, you are to extract the choices that the text has listed down. "
+    "Always use the provided tool to retain any necessary information. "
+    "Never provide data about the proposal that is not from message itself."
 )
 
 PROPOSAL_AGENT_MESSAGE = (
@@ -196,11 +230,13 @@ subgraph_builder.add_node("project_agent", project_agent)
 subgraph_builder.add_node("input_handler", input_handler_subgraph)
 subgraph_builder.add_node("tool_handler", tool_handler)
 subgraph_builder.add_node("execute_tool", ToolNode(agent_tools))
+subgraph_builder.add_node("post_processor", post_processing_node)
 
 subgraph_builder.add_edge(START, "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
 subgraph_builder.add_conditional_edges("project_agent", agent_tool_decision)
 subgraph_builder.add_edge("execute_tool", "project_agent")
+subgraph_builder.add_edge("post_processor", "input_handler")
 subgraph_builder.add_conditional_edges("input_handler", handler_decision)
 subgraph_builder.add_edge("tool_handler", END)
 
