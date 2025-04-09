@@ -124,26 +124,23 @@ def post_processing_node(state: ProjectState, config: RunnableConfig) -> Project
         Currently handles extraction of choices from the previous node.
     """
 
-    # configurable = Configuration.from_runnable_config(config)
-    # model_name = configurable.model_name
+    configurable = Configuration.from_runnable_config(config)
+    model_name = configurable.model_name
 
-    # choice_extractor = create_extractor(
-    #     models[model_name],
-    #     tools=[Choices],
-    #     tool_choice="choices",
-    #     enable_inserts=True
-    # )
-    # result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE), state["messages"][-1]])
-    # print("\n\n")
-    # print("extracted_choices:", result)
-    # print("\n\n")
+    choice_extractor = create_extractor(
+        models[model_name],
+        tools=[Choices],
+        tool_choice="Choices",
+        enable_inserts=True
+    )
+    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE), state["messages"][-1]])
+    dump = result["responses"][0].model_dump(mode="python").get("choice_selection", [])
 
-    # dump = result["responses"][0].model_dump(mode="python")
-    # print("\n\n")
-    # print("extracted_choices:", dump)
-    # print("\n\n")
+    extra_data = state.get("extra_data", {})
+    if dump:
+        extra_data["choices"] = dump
 
-    return {**state, "extra_data": {"choices": []}}
+    return {**state, "extra_data": extra_data}
 
 
 TRUSTCALL_SYSTEM_MESSAGE = (
@@ -156,9 +153,20 @@ TRUSTCALL_SYSTEM_MESSAGE = (
 )
 
 CHOICE_EXTRACTOR_MESSAGE = (
-    "Given a text, you are to extract the choices that the text has listed down. "
-    "Always use the provided tool to retain any necessary information. "
-    "Never provide data about the proposal that is not from message itself."
+    "# INSTRUCTIONS:\n"
+    "Given an input text, perform the following steps:\n"
+    "1. If the text is asking for a name, title, or value of something, return an empty list.\n"
+    "2. Carefully check if the text contains a question that is answerable strictly and only by "
+    "'Yes' or 'No'.\n"
+    "\t- If so, output exactly ['Yes', 'No'] as the answer choices.\n"
+    "3. Otherwise, scan the text for any explicitly mentioned answer choices. Extract and output "
+    "these choices exactly as they appear; do not add or modify them.\n"
+    "\t- You may add an option to decline the question if it is appropriate."
+    "4. If no explicit answer choices are found, only output an empty list.\n"
+    "5. If the text is offering assistance on a future endeavor, only output an empty list.\n"
+    "6. When creating choices, always make sure to take note of the context and incorporate it into "
+    "the choice itself.\n"
+    "Always ensure you use the provided tool only to capture and retain any necessary information."
 )
 
 PROPOSAL_AGENT_MESSAGE = (
