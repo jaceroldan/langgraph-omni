@@ -9,8 +9,6 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.store.postgres import PostgresStore
 from langgraph.prebuilt import ToolNode
 
-from psycopg import Connection
-
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
@@ -94,7 +92,6 @@ MODEL_SYSTEM_MESSAGE = (
     "\t\t- User's job position\n"
     "\t5. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
     "action was performed seamlessly.\n"
-
 )
 
 
@@ -118,11 +115,8 @@ connection_kwargs = {
     "prepare_threshold": 0,
 }
 
-with Connection.connect(DB_URI, **connection_kwargs) as conn:
-    checkpointer = PostgresSaver(conn)
-    checkpointer.setup()
-
-    store = PostgresStore(conn)
+with PostgresStore.from_conn_string(DB_URI) as store, PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     store.setup()
+    checkpointer.setup()
 
     graph = builder.compile(checkpointer=checkpointer, store=store)
