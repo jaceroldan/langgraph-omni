@@ -16,10 +16,11 @@ from utils.configuration import Configuration
 from utils.models import models
 from utils.memory import MemoryState, save_recall_memory, search_recall_memories
 from utils.constants import DB_URI
-from utils.estimates import fetch_weekly_task_estimates_summary
+from deployment.utils.estimates import fetch_weekly_task_estimates_summary, fetch_page_url
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
+import pandas as pd
 
 
 # Tools
@@ -87,19 +88,27 @@ MODEL_SYSTEM_MESSAGE = (
     "`fetch_weekly_task_estimates_summary` tool. This applies whenever the user inquires "
     "about their workload, the time needed to complete their tasks, or any similar phrasing related to task estimates "
     "for the week.\n"
-    "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
-    "\t4. Always use `save_recall_memory` to save any relevant information that the user shares with you. This will "
+    "\t3. If a user requests the URL for a specific page or asks a question regarding a page link, "
+    "call ToolCall with the 'fetch_page_url' argument. In this case, transform the user's request into a clear query "
+    "that identifies the page in question so that the system can retrieve the correct URL."
+    "\t4. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
+    "\t5. Always use `save_recall_memory` to save any relevant information that the user shares with you. This will "
     "help you remember important details for future conversations. This includes the following:\n"
     "\t\t- User's name\n"
     "\t\t- User's job position\n"
-    "\t5. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
+    "\t6. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
     "action was performed seamlessly.\n"
 
 )
 
 
 # Initialize Graph
-agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
+agent_tools = [
+        save_recall_memory,
+        search_recall_memories,
+        fetch_weekly_task_estimates_summary,
+        fetch_page_url
+    ]
 node_tools = [CreateProposal]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
