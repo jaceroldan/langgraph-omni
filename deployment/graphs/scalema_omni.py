@@ -110,11 +110,6 @@ builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("tool_executor", "agent")
 
-connection_kwargs = {
-    "autocommit": True,
-    "prepare_threshold": 0,
-}
-
 with PostgresStore.from_conn_string(DB_URI) as store, PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     store.setup()
     checkpointer.setup()
