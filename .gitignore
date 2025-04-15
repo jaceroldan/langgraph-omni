@@ -1,2 +1,5 @@
 docker-compose.yml
 venv/
+__pycache__/
+.langgraph_api/
+.env
