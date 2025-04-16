@@ -13,7 +13,7 @@ from langgraph.prebuilt import ToolNode
 from utils.configuration import Configuration
 from utils.models import models
 from utils.memory import MemoryState, save_recall_memory, search_recall_memories
-from utils.constants import DB_URI
+from settings import POSTGRES_URI
 from utils.estimates import fetch_weekly_task_estimates_summary
 
 # Import subgraphs
@@ -110,7 +110,8 @@ builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("tool_executor", "agent")
 
-with PostgresStore.from_conn_string(DB_URI) as store, PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+with PostgresStore.from_conn_string(POSTGRES_URI) as store, \
+     PostgresSaver.from_conn_string(POSTGRES_URI) as checkpointer:
     store.setup()
     checkpointer.setup()
 

@@ -2,7 +2,7 @@ import requests
 import urllib.parse
 import json
 
-from utils.constants import API_URL
+from settings import API_URL
 
 
 def fetch_task_counts(auth_token, workforce_id):
