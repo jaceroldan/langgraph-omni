@@ -24,3 +24,5 @@ services:
         required: true
       - path: "/etc/server-env/env_secret.yaml"
         required: false
+    environment:
+      DEBUG: true
