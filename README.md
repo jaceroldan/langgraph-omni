@@ -52,19 +52,21 @@
     POSTGRES_USER=bposeatsuser
     POSTGRES_PASSWORD=bposeatspassword
     POSTGRES_PORT=5432
-    POSTGRES_DB=db
+    POSTGRES_DB=bposeats
 
     API_URL=http://host.docker.internal:8000
     POSTGRES_URI=postgres://bposeatsuser:bposeatspassword@host.docker.internal:5432/bposeats?sslmode=disable
     REDIS_URI=redis://langgraph-redis:6379
     ```
 
-    **NOTE**: The format for POSTGRES_URI should be the following:
-    - Change the URL and environment variables according to the one you set in your `local_settings.py` inside bposeats
+    **NOTE**: The format for `POSTGRES_URI` should be the following:
 
     ```env
     POSTGRES_URI=postgres://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:5432/<DB_NAME>?sslmode=disable
     ```
+
+    - Change the URL and environment variables according to the one you set in your `local_settings.py` inside bposeats
+    - `DB_HOST` can be left as `host.docker.internal`
 
 6. Create an image for your deployment (Always do this every time there is a new change.)
 
