@@ -71,7 +71,7 @@
 6. Create an image for your deployment (Always do this every time there is a new change.)
 
     ```cmd
-    langgraph build -t my-image
+    langgraph build -t langgraph-image
     ```
 
 7. If everything is working, launch the deployment.
