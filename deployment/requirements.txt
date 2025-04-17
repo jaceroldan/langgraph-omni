@@ -7,4 +7,6 @@ langgraph-cli==0.1.77
 numexpr==2.10.2
 psycopg==3.2.6
 psycopg-pool==3.2.6
+psycopg2-binary==2.9.10
 langgraph-checkpoint-postgres==2.0.19
+pgvector==0.4.0
