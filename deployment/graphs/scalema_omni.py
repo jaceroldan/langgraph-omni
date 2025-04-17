@@ -12,7 +12,12 @@ from langgraph.prebuilt import ToolNode
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import MemoryState, save_recall_memory, search_recall_memories
+from utils.memory import (
+    MemoryState,
+    save_recall_memory,
+    search_recall_memories,
+    load_memory,
+    memory_node)
 from settings import POSTGRES_URI
 from utils.estimates import fetch_weekly_task_estimates_summary
 
@@ -62,11 +67,15 @@ def agent(state: MemoryState, config: RunnableConfig):
 
     configuration = Configuration.from_runnable_config(config)
     model_name = configuration.model_name
-    model_history_length = configuration.model_history_length
 
     node_model = models[model_name].bind_tools(agent_tools + node_tools)
+    sys_msg = MODEL_SYSTEM_MESSAGE
 
-    messages = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"][-model_history_length:]
+    memories = state.get("memories", None)
+    if memories:
+        sys_msg = MODEL_SYSTEM_MESSAGE + MEMORY_MESSAGE.format(memories=memories)
+
+    messages = [SystemMessage(content=sys_msg)] + state["messages"]
     response = node_model.invoke(messages)
 
     return {"messages": [response]}
@@ -85,13 +94,20 @@ MODEL_SYSTEM_MESSAGE = (
     "`fetch_weekly_task_estimates_summary` tool. This applies whenever the user inquires "
     "about their workload, the time needed to complete their tasks, or any similar phrasing related to task estimates "
     "for the week.\n"
-    "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
+    "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories"
+    "if you do not have them. If there is no such memory, simply respond that you do not know.\n"
     "\t4. Always use `save_recall_memory` to save any relevant information that the user shares with you. This will "
     "help you remember important details for future conversations. This includes the following:\n"
     "\t\t- User's name\n"
     "\t\t- User's job position\n"
     "\t5. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
     "action was performed seamlessly.\n"
+)
+
+MEMORY_MESSAGE = (
+    "# MEMORIES\n"
+    "Below are your memories of the user, this can also be empty. Carefully cater your responses accordingly.\n"
+    "<memories> {memories} </memories>\n"
 )
 
 
@@ -102,13 +118,17 @@ node_tools = [CreateProposal]
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
+builder.add_node(load_memory)
+builder.add_node(memory_node)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
 
-builder.add_edge(START, "agent")
+builder.add_edge(START, "load_memory")
+builder.add_edge("load_memory", "agent")
 builder.add_conditional_edges("agent", continue_to_tool)
-builder.add_edge("scalema_web3_subgraph", "agent")
-builder.add_edge("tool_executor", "agent")
+builder.add_edge("memory_node", "agent")
+builder.add_edge("scalema_web3_subgraph", "memory_node")
+builder.add_edge("tool_executor", "memory_node")
 
 with PostgresStore.from_conn_string(POSTGRES_URI) as store, \
      PostgresSaver.from_conn_string(POSTGRES_URI) as checkpointer:
