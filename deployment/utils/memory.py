@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional
 import uuid
+from pydantic import BaseModel
 
 from langchain_core.tools import tool
 from langchain_core.documents import Document
@@ -7,19 +8,62 @@ from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_openai.embeddings import OpenAIEmbeddings
 from langgraph.graph import MessagesState
 from langchain_core.messages import get_buffer_string
+# from trustcall import create_extractor
 
 from utils.configuration import Configuration, RunnableConfig
 from utils.tokenizer import get_tokenizer
+# from utils.models import models
 
 
 class MemoryState(MessagesState):
     memories: List[str]
 
 
+class Memory(BaseModel):
+    memory: Optional[str]
+
+
+def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
+    """
+        Processes previous messages and optimizes them to reduce token usage. Also
+        summarizes the messages and appends them to the thread memory.
+    """
+
+    messages = state["messages"]
+    memories = state["memories"]
+
+    # Commented out for future summarization
+    # memory_extractor = create_extractor(
+    #     node_model,
+    #     tools=[Memory],
+    #     tool_choice="Memory"
+    # )
+    # result = memory_extractor.invoke(
+    #     {"messages": [SystemMessage(content=SUMMARY_MESSAGE.format(memories=memories))] + messages})
+    # extracted = result['responses'][-1].memory
+    # memories.append(extracted)
+
+    # Delete all previous messages since action has already been summarized
+    # trimmed_messages = [RemoveMessage(id=m.id) for m in messages]
+
+    memory_limit = 6
+
+    return {
+        "messages": messages,
+        "memories": memories[-memory_limit:]
+    }
+
+
 def load_memory(state: MemoryState, config: RunnableConfig) -> MemoryState:
     """
-        Loads memories for the current conversation.
+        Loads memories for the current conversation. Only loads memories when
+        the `memories` in the state is empty.
     """
+
+    memories = state.get("memories", [])
+
+    if memories:
+        return {"memories": memories}
 
     configuration = Configuration.from_runnable_config(config)
     model_name = configuration.model_name
@@ -66,3 +110,15 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
 
 
 recall_vector_store = InMemoryVectorStore(OpenAIEmbeddings())
+
+# Strings
+SUMMARY_MESSAGE = (
+    "# INSTRUCTIONS\n"
+    "Your only task is to create a short but comprehensive summary of the previous conversations "
+    "for you to remember later. Always make sure to include the following in the memory sentence:\n"
+    "\t- what the User asked.\n"
+    "\t- what the outcome was of the conversation.\n"
+    "\t- if there were any other notable interactions, include it.\n"
+    "Below is the current list of memories, do not try to overwrite any memory:\n"
+    "<memories> {memories} </memories>"
+)
