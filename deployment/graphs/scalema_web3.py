@@ -3,10 +3,11 @@ from typing import Literal, TypedDict
 from datetime import datetime
 
 # Import Langgraph
-from langchain_core.messages import SystemMessage, merge_message_runs
+from langchain_core.messages import SystemMessage, merge_message_runs, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import ToolNode
+from langchain_core.messages.utils import count_tokens_approximately
 from trustcall import create_extractor
 
 # Import utility functions
@@ -18,6 +19,8 @@ from utils.tools import calculator
 
 # Import subgraphs
 from graphs.input_handling import input_handler_subgraph
+
+import settings
 
 
 # Tools
@@ -76,6 +79,16 @@ def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectS
             messages=[SystemMessage(content=TRUSTCALL_FORMATTED_MESSAGE)] + state["messages"][:-1]
     ))
 
+    trimmed_messages = trim_messages(
+        merged_messages,
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=settings.TOKEN_LIMIT,
+        start_on="human",
+        end_on=("human", "tool"),
+        allow_partial=False
+    )
+
     proposal_extractor = create_extractor(
         models[model_name],
         tools=[Project],
@@ -83,7 +96,7 @@ def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectS
         enable_inserts=True
     )
 
-    result = proposal_extractor.invoke({"messages": merged_messages})
+    result = proposal_extractor.invoke({"messages": trimmed_messages})
 
     extracted_project_details = result["responses"][0]
 
@@ -111,10 +124,20 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     node_model = models[model_name].bind_tools(agent_tools)
     project_details = state["project_details"]
 
+    trimmed_messages = trim_messages(
+        state["messages"],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=settings.TOKEN_LIMIT,
+        start_on="human",
+        end_on=("human", "tool"),
+        allow_partial=False
+    )
+
     FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=project_details)
     FORMATTED_HANDLER_MESSAGE = INTERRUPT_HANDLER_MESSAGE.format(proposal_details=project_details)
 
-    response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + state["messages"])
+    response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + trimmed_messages)
     return {"messages": [response], "tools": [ToolCall], "handler_message": FORMATTED_HANDLER_MESSAGE}
 
 
@@ -129,10 +152,12 @@ TRUSTCALL_SYSTEM_MESSAGE = (
 
 PROPOSAL_AGENT_MESSAGE = (
     "\n# PROPOSAL GUIDELINES"
-    "\nYour only goal is to complete a proposal form using inputs from a user. You will be given the "
-    "current state of the proposal and you must base which instruction to follow using that information. "
-    "The following is the current state of the proposal:"
-    "\n{proposal_details}"
+    "\nYour only goal is to complete a proposal form using inputs from a user. In the beginning, you are "
+    "supposed to start with a blank state proposal. The user will provide you with the information "
+    "needed to fill the proposal. You will also be able to ask the user for any missing information and "
+    "base which instruction to follow using the given information. The following is the current state of "
+    "the proposal but can also be empty:"
+    "\n<details>{proposal_details}</details>"
     "\n## MISSING FIELDS INSTRUCTIONS"
     "\n\nFollow the instructions below for missing fields:"
     "\n\t- Always ask for the title first, if possible."
