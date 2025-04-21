@@ -86,6 +86,10 @@
     docker-compose down
     ```
 
+## POSTGRES DB
+
+Make sure to update your posgresql configs for POSTGRES memory. [document link](https://docs.google.com/document/d/1GaVL1j9g05SQYXdJGNjkqMeWNGbGYv_1I6J2QZucZ-s/edit?usp=sharing)
+
 ## Viewing your Deployed Graph
 
 - API: http://localhost:8123
