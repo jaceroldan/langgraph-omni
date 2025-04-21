@@ -49,14 +49,14 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
     result = memory_extractor.invoke(
         {"messages": [SystemMessage(content=SUMMARY_MESSAGE.format(memories=memories))] + messages})
     extracted = result['responses'][-1].memory
-    memories = [extracted]
 
     # Delete all previous messages since action has already been summarized
     removed_messages = [RemoveMessage(id=m.id) for m in messages]
+    saved_memores = save_recall_memory.invoke(extracted, config)
 
     return {
         "messages": removed_messages,
-        "memories": memories
+        "memories": saved_memores
     }
 
 
