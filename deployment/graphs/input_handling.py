@@ -43,7 +43,7 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
         messages,
         strategy="last",
         token_counter=count_tokens_approximately,
-        max_tokens=30,
+        max_tokens=500,
         start_on="human",
         end_on=("human", "tool"),
         allow_partial=False
