@@ -11,3 +11,11 @@ API_URL = get_settings_variable(
     default="http://host.docker.internal:8000",
     required=True
 )
+
+# Memory settings
+MODEL_HISTORY_LENGTH = 4  # Do not use Odd numbers or 400 error occurs "Invalid parameter"
+TOKEN_LIMIT = 1000
+
+# PGVECTOR
+VECTOR_SIZE = 768
+TABLE_NAME = "memory_collection"
