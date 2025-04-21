@@ -71,7 +71,7 @@ def agent(state: MemoryState, config: RunnableConfig):
     node_model = models[model_name].bind_tools(agent_tools + node_tools)
     sys_msg = MODEL_SYSTEM_MESSAGE
 
-    memories = state.get("memories", None)
+    memories = state.get("memories", [])
     if memories:
         sys_msg = MODEL_SYSTEM_MESSAGE + MEMORY_MESSAGE.format(memories=memories)
 
