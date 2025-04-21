@@ -37,7 +37,7 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
     model_name = configuration.model_name
     node_model = models[model_name]
 
-    messages = state["messages"][:-settings.MODEL_HISTORY_LENGTH]
+    messages = state["messages"]
     memories = state["memories"]
 
     # Commented out for future summarization
@@ -51,7 +51,7 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
     extracted = result['responses'][-1].memory
 
     # Delete all previous messages since action has already been summarized
-    removed_messages = [RemoveMessage(id=m.id) for m in messages]
+    removed_messages = [RemoveMessage(id=m.id) for m in messages[:-settings.MODEL_HISTORY_LENGTH]]
     saved_memores = save_recall_memory.invoke(extracted, config)
 
     return {
