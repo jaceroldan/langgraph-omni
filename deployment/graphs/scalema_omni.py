@@ -12,13 +12,16 @@ from langgraph.prebuilt import ToolNode
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import MemoryState, save_recall_memory, search_recall_memories
 from utils.constants import DB_URI
-from deployment.utils.estimates import fetch_weekly_task_estimates_summary, fetch_page_url
+from deployment.tools.scalema_omni import (
+    MemoryState,
+    save_recall_memory,
+    search_recall_memories,
+    fetch_weekly_task_estimates_summary,
+    fetch_page_url)
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
-import pandas as pd
 
 
 # Tools
@@ -118,11 +121,6 @@ builder.add_edge(START, "agent")
 builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
 builder.add_edge("tool_executor", "agent")
-
-connection_kwargs = {
-    "autocommit": True,
-    "prepare_threshold": 0,
-}
 
 with PostgresStore.from_conn_string(DB_URI) as store, PostgresSaver.from_conn_string(DB_URI) as checkpointer:
     store.setup()

@@ -12,15 +12,12 @@ services:
             timeout: 1s
             retries: 5
     langgraph-api:
-        image: "my-image"
+        image: "langgraph-image"
         ports:
             - "8123:8000"
         extra_hosts:
-          - "host.docker.internal:host-gateway"
+          - "$POSTGRES_HOST:host-gateway"
         depends_on:
         - langgraph-redis
-        environment:
-            REDIS_URI: redis://langgraph-redis:6379
-            OPENAI_API_KEY: <YOUR-API-KEY-HERE>
-            LANGSMITH_API_KEY: <YOUR-API-KEY-HERE>
-            POSTGRES_URI: postgres://bposeatsuser:bposeatspassword@host.docker.internal:5432/db?sslmode=disable
+        env_file:
+            - ".env"

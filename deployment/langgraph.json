@@ -1,10 +1,22 @@
 {
-  "dockerfile_lines": [],
+  "python_version": "3.13",
+  "dependencies": ["."],
+  "env": ".env",
   "graphs": {
     "scalema_omni": "./graphs/scalema_omni.py:graph"
   },
-  "python_version": "3.13",
-  "dependencies": [
-    "."
-  ]
+  "store": {
+    "ttl": {
+      "refresh_on_read": true,
+      "sweep_interval_minutes": 60,
+      "default_ttl": 10080
+    }
+  },
+  "checkpointer": {
+    "ttl": {
+      "strategy": "delete",
+      "sweep_interval_minutes": 60,
+      "default_ttl": 43200
+    }
+  }
 }
