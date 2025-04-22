@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+  <route>
+    <path>/personal/exit-interview/details/:id</path>
+    <description>Displays detailed responses and feedback submitted in an employee’s exit interview.</description>
+  </route>
+  <route>
+    <path>/personal/contracts/details/:contract_id</path>
+    <description>Displays detailed information of a specific employment contract based on the contract ID.</description>
+  </route>
+  <route>
+    <path>/personal/contracts/:job_offer_id</path>
+    <description>Allows applicants to view and digitally sign job offer contracts linked to a specific job offer ID.</description>
+  </route>
+  <route>
+    <path>/personal/exit-interview-page/:id</path>
+    <description>Allows employees to complete an exit interview form associated with their offboarding process.</description>
+  </route>
+  <route>
+    <path>/personal/personal-board</path>
+    <description>Displays a personalized dashboard for the user, showing tasks, notices, and relevant updates in their organization or role.</description>
+  </route>
+  <route>
+    <path>/personal/jobs-board</path>
+    <description>Public-facing or internal page where applicants can browse available jobs and submit applications.</description>
+  </route>
+  <route>
+    <path>/personal/ticket-tracker</path>
+    <description>Displays a board for tracking tickets, issues, or tasks related to user  activity or internal workflows.</description>
+  </route>
+  <route>
+    <path>/personal/ticket-board</path>
+    <description>Redirects to the main ticket tracking board page, used for routing consistency.</description>
+  </route>
+  <route>
+    <path>/personal/account-information</path>
+    <description>Page for organizational administrators to view and manage account settings and company-level configurations.</description>
+  </route>
+  <route>
+    <path>/personal/contracts</path>
+    <description>Main page for viewing all employment-related contracts associated with the logged-in user or administrator.</description>
+  </route>
+  <route>
+    <path>/home/home-page</path>
+    <description>Central landing page that provides an overview of the user’s activity, announcements, and high-level organizational information.</description>
+  </route>
+  <route>
+    <path>/home/workforce-page</path>
+    <description>Displays a list of all workspaces or teams the user is part of, allowing them to  navigate between different organizational units.</description>
+  </route>
+</routes>
