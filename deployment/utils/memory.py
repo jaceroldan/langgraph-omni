@@ -39,24 +39,30 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
 
     messages = state["messages"]
     memories = state["memories"]
+    tool_name = "Memory"
 
-    # Commented out for future summarization
+    existing_memories = ([existing_item for existing_item in memories] if memories else None)
+
     memory_extractor = create_extractor(
         node_model,
         tools=[Memory],
-        tool_choice="Memory"
+        tool_choice=tool_name,
+        enable_inserts=True
     )
     result = memory_extractor.invoke(
-        {"messages": [SystemMessage(content=SUMMARY_MESSAGE.format(memories=memories))] + messages})
-    extracted = result['responses'][-1].memory
+        {"messages": [SystemMessage(content=SUMMARY_MESSAGE)] + messages,
+         "existing": existing_memories})
+
+    extracted_memories = []
+    for r in result['responses']:
+        extracted_memories.append(save_recall_memory.invoke(r.memory, config))
 
     # Delete all previous messages since action has already been summarized
     removed_messages = [RemoveMessage(id=m.id) for m in messages[:-settings.MODEL_HISTORY_LENGTH]]
-    saved_memores = save_recall_memory.invoke(extracted, config)
 
     return {
         "messages": removed_messages,
-        "memories": saved_memores
+        "memories": extracted_memories
     }
 
 
@@ -91,10 +97,13 @@ def save_recall_memory(memory: str, config: RunnableConfig) -> str:
 
     configuration = Configuration.from_runnable_config(config)
     user_profile_pk = configuration.user_profile_pk
+    id = str(uuid.uuid4())
     document = Document(
-        page_content=memory, id=str(uuid.uuid4()), metadata={"user_profile_pk": user_profile_pk}
+        page_content=memory, id=id, metadata={"user_profile_pk": user_profile_pk}
     )
     recall_vector_store.add_documents([document])
+
+    print(f"Saved memory: {document}")
     return memory
 
 
@@ -112,6 +121,8 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
     documents = recall_vector_store.similarity_search(
         query, k=3, filter=_filter_function
     )
+
+    print(f"Found {len(documents)} memories:", f"{documents}")
     return [document.page_content for document in documents]
 
 
@@ -123,12 +134,14 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 SUMMARY_MESSAGE = (
     "# SYSTEM INSTRUCTIONS\n"
     "Your only task is to create a short but comprehensive summary of the previous conversations "
-    "for you to remember later. If there are no conversations, then return an empty array.\n"
-    "Always make sure to include the following in the memory sentence:\n"
-    "\t- what the User asked.\n"
-    "\t- what the outcome was of the conversation.\n"
-    "\t- if there were any other notable interactions, include it.\n"
-    "Below is the current list of memories:\n"
-    "<memories> {memories} </memories>\n"
+    "for you to remember later. If there are no conversations, then return an empty array. Make "
+    "sure to update the memory with the latest information. Some examples of what you should remember are:\n"
+    "\t- User's name\n"
+    "\t- User's job position\n"
+    "\t- What the user asked of you and the result of that action\n"
+    "Examples of a memory are:\n"
+    "\t- User's name is John Doe\n"
+    "\t- User's job position is Software Engineer\n"
+    "\t- User asked for their task estimates and the system provided an estimate of 1.23 hours to complete.\n"
     "Below is the conversation history:\n"
 )

@@ -1,6 +1,5 @@
 # Import general libraries
 from typing import Literal, TypedDict
-from datetime import datetime
 
 # Import Langgraph
 from langchain_core.messages import SystemMessage, merge_message_runs, trim_messages
@@ -71,32 +70,31 @@ def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectS
     model_name = configurable.model_name
     tool_name = "Project"
 
-    TRUSTCALL_FORMATTED_MESSAGE = TRUSTCALL_SYSTEM_MESSAGE.format(
-        time=datetime.now().isoformat(),
-        proposal_details=state.get("project_details", None)
-    )
-    merged_messages = list(merge_message_runs(
-            messages=[SystemMessage(content=TRUSTCALL_FORMATTED_MESSAGE)] + state["messages"][:-1]
-    ))
-
     trimmed_messages = trim_messages(
-        merged_messages,
+        state["messages"],
         strategy="last",
         token_counter=count_tokens_approximately,
-        max_tokens=settings.TOKEN_LIMIT,
+        max_tokens=settings.TOKEN_LIMIT_LARGE,
         start_on="human",
         end_on=("human", "tool"),
         allow_partial=False
     )
 
+    merged_messages = list(merge_message_runs(
+            messages=[SystemMessage(content=TRUSTCALL_SYSTEM_MESSAGE)] + trimmed_messages
+    ))
+
     proposal_extractor = create_extractor(
         models[model_name],
         tools=[Project],
         tool_choice=tool_name,
-        enable_inserts=True
+        enable_inserts=True,
+        enable_deletes=True
     )
 
-    result = proposal_extractor.invoke({"messages": trimmed_messages})
+    project_details = state.get("project_details", None)
+
+    result = proposal_extractor.invoke({"messages": merged_messages, "existing": {"Project": project_details}})
 
     extracted_project_details = result["responses"][0]
 
@@ -122,7 +120,7 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     configurable = Configuration.from_runnable_config(config)
     model_name = configurable.model_name
     node_model = models[model_name].bind_tools(agent_tools)
-    project_details = state["project_details"]
+    project_details = state.get("project_details", None)
 
     trimmed_messages = trim_messages(
         state["messages"],
@@ -143,24 +141,31 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
 
 TRUSTCALL_SYSTEM_MESSAGE = (
     "# TRUSTCALL SYSTEM INSTRUCTIONS\n"
-    "Your sole responsibility is to analyze the interaction and call the appropriate tool(s) "
-    "based on the user's input.\n\n"
+    "You are a tool-routing assistant. Your only role is to analyze user input and call the appropriate tools.\n\n"
     "## Tool Usage Guidelines:\n"
-    "- Always use the provided tool to store or update any necessary information.\n"
-    "- Use **parallel tool calls** whenever possible to handle updates and insertions simultaneously.\n"
-    "- Do **not** generate or infer proposal details that have not come directly from the user’s messages.\n\n"
-    "## Context\n"
-    "- System Time: {time}\n"
-    "- Current Proposal State:\n"
-    "<proposal>{proposal_details}</proposal>\n"
+    "- Do **not** generate, guess, or infer any proposal details beyond what is explicitly provided by the user.\n"
+    "- If a piece of information is not directly stated by the user, leave it as `None`, `null`, or blank.\n"
+    "- Start each interaction with an empty state. Do **not** retain or carry forward any previous proposal details.\n"
+    "- Use only the user's current message for context.\n"
+    "- Always use the provided tool(s) to store or update proposal information.\n"
+    "- When multiple pieces of information are provided, use **parallel tool calls** to handle them simultaneously.\n\n"
+    "## What You Must Avoid:\n"
+    "- Do **not** fabricate details.\n"
+    "- Do **not** assume missing values.\n"
+    "- Do **not** use world knowledge, prior experience, or assumptions to fill in blanks.\n\n"
+    "## Best Practices:\n"
+    "- Extract only what is explicitly stated.\n"
+    "- Validate that each field has a clear mapping in the user's input.\n"
+    "- Ask for clarification if required, or proceed with blanks if the instruction is to do so.\n"
 )
 
 PROPOSAL_AGENT_MESSAGE = (
     "# PROPOSAL GUIDELINES\n"
     "Your primary objective is to help the user complete a proposal form, starting from a blank state.\n"
     "You will collect information from the user, field by field, and may ask clarifying questions as needed.\n"
+    "Always try to suggest the most relevant options based on the user's input.\n\n"
     "The current state of the proposal (which may be empty) is shown below:\n"
-    "<details>{proposal_details}</details>\n\n"
+    "<details> {proposal_details} </details>\n\n"
     "## INSTRUCTIONS FOR MISSING FIELDS\n"
     "- Begin by requesting the **title** of the proposal.\n"
     "- Once the title is provided:\n"
@@ -170,21 +175,21 @@ PROPOSAL_AGENT_MESSAGE = (
     "    1. title\n"
     "    2. project_type\n"
     "    3. description\n\n"
-    "- After steps 1–3 are filled:\n"
+    "- After steps 1-3 are filled:\n"
     "  - Show the user only the current **title**, **project_type**, and **description**.\n"
     "  - Ask for confirmation and whether they want to refine anything.\n"
     "  - If confirmed, proceed to the next fields:\n"
     "    4. location\n"
     "    5. funding_goal\n"
     "    6. available_shares\n\n"
-    "- Once steps 4–6 are completed:\n"
+    "- Once steps 4-6 are completed:\n"
     "  - Call `calculator` to compute the per-share price.\n"
     "  - Inform the user of the calculated share price and let them know they can adjust values if needed.\n"
-    "  - Do not proceed until the user confirms they’re okay with the share price.\n\n"
+    "  - Do not proceed until the user confirms they're okay with the share price.\n\n"
     "- Continue with:\n"
     "    7. minimum_viable_fund\n"
     "    8. funding_date_completion\n\n"
-    "- For the final fields (9–11), consider the context of the proposal and suggest useful additions:\n"
+    "- For the final fields (9-11), consider the context of the proposal and suggest useful additions:\n"
     "    9. key_milestone_dates\n"
     "    10. financial_documents\n"
     "    11. legal_documents\n\n"
@@ -194,9 +199,9 @@ PROPOSAL_AGENT_MESSAGE = (
     "- Once all fields are completed:\n"
     "  - Present the full proposal to the user for final review.\n"
     "  - Ask if they would like to:\n"
-    "    • Refine or add any more information\n"
-    "    • Save it as a draft\n"
-    "    • Submit it for review by Scalema Admins\n\n"
+    "    - Refine or add any more information\n"
+    "    - Save it as a draft\n"
+    "    - Submit it for review by Scalema Admins\n\n"
     "- Maintain a friendly and professional tone throughout.\n"
     "- Include short, encouraging comments when responding to user inputs."
 )
