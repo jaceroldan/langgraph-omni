@@ -48,16 +48,21 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_ha
             return "tool_handler"
 
 
-def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execute_tool"]:  # type: ignore
+def continue_to_tool(state: MessagesState) -> Literal["input_handler", "tool_executor", END]:  # type: ignore
     """
         Contains decisions for if the agent needs to use one of its tools or continue with asking
         for user inputs.
     """
-    tool_calls = state["messages"][-1].tool_calls
 
-    for item in tool_calls:
-        if item["name"] == "calculator":
-            return "execute_tool"
+    tool_calls = state["messages"][-1].tool_calls
+    # If there is no function call, then finish
+    if not tool_calls:
+        return END
+
+    tool_name = tool_calls[0]["name"]
+    match tool_name:
+        case _ if tool_name in [tool.get_name() for tool in agent_tools]:
+            return "tool_executor"
     return "input_handler"
 
 
@@ -71,7 +76,7 @@ def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectS
     tool_name = "Project"
 
     trimmed_messages = trim_messages(
-        state["messages"],
+        state["messages"][:-1],
         strategy="last",
         token_counter=count_tokens_approximately,
         max_tokens=settings.TOKEN_LIMIT_LARGE,
@@ -211,7 +216,6 @@ INTERRUPT_HANDLER_MESSAGE = (
     "You are provided with the current state of the proposal:\n"
     "<details>{proposal_details}</details>\n\n"
     "Your role is to carefully evaluate the user's input and determine the appropriate action using a tool.\n"
-    "**You are not allowed to respond to the user directly; only interact via the tool.**\n\n"
     "## Tool Usage Guidelines:\n"
     "- If the user explicitly states **not to continue**, call `ToolCall` with the `finalize` argument.\n"
     "- If the user explicitly requests to **save as a draft**, call `ToolCall` with the `finalize` argument.\n"
@@ -230,12 +234,12 @@ subgraph_builder.add_node("project_helper", project_helper_node)
 subgraph_builder.add_node("project_agent", project_agent)
 subgraph_builder.add_node("input_handler", input_handler_subgraph)
 subgraph_builder.add_node("tool_handler", tool_handler)
-subgraph_builder.add_node("execute_tool", ToolNode(agent_tools))
+subgraph_builder.add_node("tool_executor", ToolNode(agent_tools))
 
 subgraph_builder.add_edge(START, "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
-subgraph_builder.add_conditional_edges("project_agent", agent_tool_decision)
-subgraph_builder.add_edge("execute_tool", "project_agent")
+subgraph_builder.add_conditional_edges("project_agent", continue_to_tool)
+subgraph_builder.add_edge("tool_executor", "project_agent")
 subgraph_builder.add_conditional_edges("input_handler", handler_decision)
 subgraph_builder.add_edge("tool_handler", END)
 
