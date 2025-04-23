@@ -1,10 +1,11 @@
 # Import general libraries
-from typing import Literal, TypedDict
+from typing import Literal
 
 # Import Langgraph
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.store.postgres import PostgresStore
 from langgraph.prebuilt import ToolNode
@@ -26,10 +27,12 @@ from graphs.scalema_web3 import scalema_web3_subgraph
 
 
 # Tools
-class CreateProposal(TypedDict):
+@tool
+def web3_create_proposal():
     """
         Creates a proposal. Routes to `scalema_web3_subgraph` for proposal creation.
     """
+    return
 
 
 def continue_to_tool(state: MessagesState) -> Literal[
@@ -48,7 +51,7 @@ def continue_to_tool(state: MessagesState) -> Literal[
     tool_name = tool_calls[0]["name"]
     route_to_nodes = []
     match tool_name:
-        case "CreateProposal":
+        case "web3_create_proposal":
             route_to_nodes.append("scalema_web3_subgraph")
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
             route_to_nodes.append("tool_executor")
@@ -90,7 +93,7 @@ MODEL_SYSTEM_MESSAGE = (
     "You have access to a set of tools to help you handle client requests efficiently.\n\n"
     "## TOOL USAGE GUIDELINES\n"
     "1. **Proposal Assistance**:\n"
-    "   - If the user asks for help with a proposal or provides proposal details, use the `CreateProposal` tool.\n\n"
+    "   - If the user asks for help with a proposal or provides proposal details, use the `web3_create_proposal` tool.\n\n"
     "2. **Weekly Task Estimates**:\n"
     "   - If the user asks how long their tasks will take this week, or anything about workload/time estimates,\n"
     "     use the `fetch_weekly_task_estimates_summary` tool.\n\n"
@@ -116,7 +119,7 @@ MEMORY_MESSAGE = (
 
 # Initialize Graph
 agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
-node_tools = [CreateProposal]
+node_tools = [web3_create_proposal]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
