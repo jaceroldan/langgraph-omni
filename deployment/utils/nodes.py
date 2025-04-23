@@ -1,6 +1,11 @@
 from langgraph.graph import MessagesState
 
 
+def fake_node(state):
+    """Fake node that does nothing. Used for testing."""
+    return state
+
+
 def tool_handler(state: MessagesState):
     """
         Fake node to used for exiting the subgraph.
