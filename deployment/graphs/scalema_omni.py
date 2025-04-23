@@ -3,7 +3,7 @@ from typing import Literal
 
 # Import Langgraph
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, merge_message_runs
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.checkpoint.postgres import PostgresSaver
@@ -70,15 +70,18 @@ def agent(state: MemoryState, config: RunnableConfig):
 
     configuration = Configuration.from_runnable_config(config)
     model_name = configuration.model_name
+    memories = state.get("memories")
 
     node_model = models[model_name].bind_tools(agent_tools + node_tools)
-    sys_msg = MODEL_SYSTEM_MESSAGE
 
-    memories = state.get("memories", [])
+    sys_msg = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)]
     if memories:
-        sys_msg = MODEL_SYSTEM_MESSAGE + MEMORY_MESSAGE.format(memories=memories)
+        sys_msg.append(SystemMessage(content=MEMORY_MESSAGE.format(memories=memories)))
 
-    messages = [SystemMessage(content=sys_msg)] + state["messages"]
+    messages = merge_message_runs(
+        messages=sys_msg + state["messages"]
+    )
+
     response = node_model.invoke(messages)
 
     return {"messages": [response]}
@@ -93,7 +96,8 @@ MODEL_SYSTEM_MESSAGE = (
     "You have access to a set of tools to help you handle client requests efficiently.\n\n"
     "## TOOL USAGE GUIDELINES\n"
     "1. **Proposal Assistance**:\n"
-    "   - If the user asks for help with a proposal or provides proposal details, use the `web3_create_proposal` tool.\n\n"
+    "   - If the user asks for help with a proposal or provides proposal details, use the `web3_create_proposal` "
+    "tool.\n\n"
     "2. **Weekly Task Estimates**:\n"
     "   - If the user asks how long their tasks will take this week, or anything about workload/time estimates,\n"
     "     use the `fetch_weekly_task_estimates_summary` tool.\n\n"
