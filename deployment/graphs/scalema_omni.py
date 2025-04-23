@@ -38,9 +38,11 @@ def web3_create_proposal():
 def continue_to_tool(state: MessagesState) -> Literal[
                                                 "scalema_web3_subgraph",
                                                 "tool_executor",
-                                                END]:  # type: ignore
+                                                "__end__"]:
     """
         Decide on which tool to use
+        @TODO: Transfer to a handoff_tool
+        https://langchain-ai.github.io/langgraph/how-tos/agent-handoffs/#implement-a-handoff-tool
     """
 
     tool_calls = state["messages"][-1].tool_calls
@@ -49,16 +51,15 @@ def continue_to_tool(state: MessagesState) -> Literal[
         return END
 
     tool_name = tool_calls[0]["name"]
-    route_to_nodes = []
     match tool_name:
         case "web3_create_proposal":
-            route_to_nodes.append("scalema_web3_subgraph")
+            return "scalema_web3_subgraph"
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
-            route_to_nodes.append("tool_executor")
+            return "tool_executor"
         case _:
             return END
 
-    return route_to_nodes
+    return END
 # Schemas
 
 
