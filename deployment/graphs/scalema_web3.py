@@ -5,8 +5,6 @@ from typing import Literal  # , TypedDict
 from langchain_core.messages import SystemMessage, merge_message_runs, trim_messages
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from langchain.tools.render import format_tool_to_openai_function
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.prebuilt import ToolNode
@@ -25,16 +23,21 @@ import settings
 # Tools
 @tool
 def get_user_input():
-    """
-        Fake tool to get user input.
-    """
+    """Fake tool to get user input."""
+    return
+
+
+@tool
+def finish_proposal():
+    """Fake tool to finish proposal."""
     return
 
 
 def continue_to_tool(state: MessagesState) -> Literal[
                                                 "input_tool_handler",
                                                 "tool_executor",
-                                                "__end__"]:  # type: ignore
+                                                "end_tool_handler",
+                                                "__end__"]:
     """
         Contains decisions for if the agent needs to use one of its tools or continue with asking
         for user inputs.
@@ -47,9 +50,13 @@ def continue_to_tool(state: MessagesState) -> Literal[
 
     tool_name = tool_calls[0]["name"]
     match tool_name:
+        case "finish_proposal":
+            return "end_tool_handler"
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
             return "tool_executor"
-    return "input_tool_handler"
+        case "get_user_input":
+            return "input_tool_handler"
+    return END
 
 
 # Nodes
@@ -102,13 +109,15 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
 
     configurable = Configuration.from_runnable_config(config)
     model_name = configurable.model_name
-    project_agent_model = models[model_name].bind_tools(node_tools)
-    completion_agent_model = models[model_name].bind_tools(agent_tools)
+    project_agent_model = models[model_name]
+    tool_caller_model = models["tool-calling-model"].bind_tools(agent_tools + node_tools)
 
     project_details = state.get("project_details", None)
 
+    merged_message = merge_message_runs(state["messages"])
+
     input_trimmed_messages = trim_messages(
-        state["messages"],
+        merged_message,
         strategy="last",
         token_counter=count_tokens_approximately,
         max_tokens=settings.TOKEN_LIMIT_SMALL,
@@ -118,7 +127,7 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     )
 
     trimmed_messages = trim_messages(
-        state["messages"],
+        merged_message,
         strategy="last",
         token_counter=count_tokens_approximately,
         max_tokens=settings.TOKEN_LIMIT,
@@ -130,19 +139,13 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     FORMATTED_ROUTER_MESSAGE = PROPOSAL_ROUTER_MESSAGE.format(proposal_details=project_details)
     FORMATTED_COMPLETION_MESSAGE = PROPOSAL_COMPLETION_MESSAGE.format(proposal_details=project_details)
 
-    route_response = project_agent_model.invoke(
+    tool_caller_model_response = tool_caller_model.invoke(
         [SystemMessage(content=FORMATTED_ROUTER_MESSAGE)] + input_trimmed_messages,
         config={"callbacks": [silent_handler]})
-    agent_response = completion_agent_model.invoke(
+    agent_response = project_agent_model.invoke(
         [SystemMessage(content=FORMATTED_COMPLETION_MESSAGE)] + trimmed_messages)
 
-    print("\n\n")
-    print("Agent Response: ", agent_response)
-    print("\n\n")
-    if agent_response:
-        pass
-
-    return {"messages": [route_response]}
+    return {"messages": [agent_response, tool_caller_model_response]}
 
 
 TRUSTCALL_SYSTEM_MESSAGE = (
@@ -154,7 +157,7 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "- Start each interaction with an empty state. Do **not** retain or carry forward any previous proposal details.\n"
     "- Use only the user's current message for context.\n"
     "- Always use the provided tool(s) to store or update proposal information.\n"
-    "- When multiple pieces of information are provided, use **parallel tool calls** to handle them simultaneously.\n\n"
+    "- You must call **exactly one tool per turn**. Never call more than one tool at a time.\n\n"
     "## What You Must Avoid:\n"
     "- Do **not** fabricate details.\n"
     "- Do **not** assume missing values.\n"
@@ -166,26 +169,34 @@ TRUSTCALL_SYSTEM_MESSAGE = (
 )
 
 PROPOSAL_ROUTER_MESSAGE = (
+    "**IMPORTANT**: You must not generate any messages, questions or explanations. Respond ONLY using a tool "
+    "call or return an empty response — no text, no response.\n\n"
+
     "# SYSTEM INSTRUCTIONS\n"
-    "You are assisting the user with completing a proposal form. Your behavior must follow these strict rules:\n\n"
+    "You are a tool manager AI that responds to user responses with tool calls. "
+    "Your behavior must follow these strict rules:\n\n"
     "## DO NOT RESPOND WITH ANY TEXT.\n"
     "- Never respond with natural language.\n"
     "- Your output must either be a tool call (e.g., `get_user_input`) or an empty string (`''`).\n\n"
     "## WHEN TO CALL TOOLS:\n"
-    "- If **any required fields are missing or empty**, call `get_user_input`.\n\n"
-    "## WHEN TO RETURN AN EMPTY STRING:\n"
-    "- If the user explicitly says **not to continue**.\n"
-    "- If the user explicitly asks to **save as a draft**.\n"
-    "- If the user instructs to **submit** the proposal and **all required fields are complete**.\n\n"
+    "- If **any required fields are missing or empty**, call `get_user_input`.\n"
+    "- If any of the following conditions are met, call `finish_proposal`:\n"
+    "  - If the user explicitly says **not to continue**.\n"
+    "  - If the user explicitly asks to **save as a draft**.\n"
+    "  - If the user instructs to **submit** the proposal and **all required fields are complete**.\n"
+    "- If the user has provided shares and the funding goal, call `calculator` to compute the per-share price.\n\n"
+
     "Currently, the proposal is in the following state:\n"
     "<details> {proposal_details} </details>\n\n"
-    "Repeat: **You must not generate any messages or explanations**. Respond ONLY using a tool call or return an "
-    "empty response.\n"
+
+    "**IMPORTANT**: You must not generate any messages, questions or explanations. Respond ONLY using a tool "
+    "call or return an empty response — no text, no response.\n\n"
 )
 
 PROPOSAL_COMPLETION_MESSAGE = (
     "**IMPORTANT**: If the user explicitly states to stop or not to continue, you must ignore all "
     "instructions below and respond with absolutely nothing — no tool calls, no text, no response.\n\n"
+
     "# PROPOSAL GUIDELINES\n"
     "Starting from a blank state, you will collect information from the user, field by field, and may ask "
     "clarifying questions as needed. Always try to suggest the most relevant options based on the user's input.\n\n"
@@ -193,18 +204,21 @@ PROPOSAL_COMPLETION_MESSAGE = (
     "<details> {proposal_details} </details>\n\n"
 
     "## INSTRUCTIONS FOR MISSING FIELDS\n"
+    "- If the user decides to stop or not to continue midway, ignore everything and simply respond with nothing.\n"
+    "- Do not reiterate the entire proposal form to the user unless asked.\n"
     "- Begin by requesting the `title` of the proposal.\n"
     "- Once the title is provided:\n"
     "  - Suggest possible `project_type` options based on the title.\n"
-    "  - If given a description, simply infer the `project_type` from it.\n"
+    "  - If instead given a description, simply create a `project_type` from it.\n"
+    "  - Make sure the project type is appropriate and professional.\n"
     "- Proceed to gather each missing field individually, following this sequence:\n"
     "    1. title\n"
     "    2. project_type\n"
     "    3. description\n\n"
     "- After steps 1-3 are filled:\n"
-    "  - Show the user only the current `title`, `project_type`, and `description`.\n"
+    "  - Immediately after, show the user only the current `title`, `project_type`, and `description` only once.\n"
     "  - Ask for confirmation and whether they want to refine anything.\n"
-    "  - If confirmed, proceed to the next fields:\n"
+    "  - If the user is satisfied or has confirmed, proceed to the next fields:\n"
     "    4. location\n"
     "    5. funding_goal\n"
     "    6. available_shares\n\n"
@@ -229,13 +243,14 @@ PROPOSAL_COMPLETION_MESSAGE = (
     "    - Save it as a draft\n"
     "    - Submit it for review by Scalema Admins\n\n"
     "- Include short, encouraging comments when responding to user inputs but always be professional.\n\n"
+
     "**IMPORTANT**: If the user explicitly states to stop or not to continue, you must ignore all previous "
     "instructions and respond with absolutely nothing — no tool calls, no text, no response.\n"
 )
 
 
-agent_tools = [calculator]
-node_tools = [get_user_input]
+agent_tools = [calculator, finish_proposal]
+node_tools = [get_user_input, finish_proposal]
 
 # Initialize Graph
 subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
@@ -245,6 +260,7 @@ subgraph_builder.add_node(project_agent)
 subgraph_builder.add_node(input_helper)
 subgraph_builder.add_node("initial_tool_handler", tool_handler)
 subgraph_builder.add_node("input_tool_handler", tool_handler)
+subgraph_builder.add_node("end_tool_handler", tool_handler)
 subgraph_builder.add_node("tool_executor", ToolNode(agent_tools))
 
 subgraph_builder.add_edge(START, "initial_tool_handler")
@@ -254,5 +270,6 @@ subgraph_builder.add_edge("tool_executor", "project_agent")
 subgraph_builder.add_edge("input_tool_handler", "input_helper")
 subgraph_builder.add_edge("input_helper", "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
+subgraph_builder.add_edge("end_tool_handler", END)
 
 scalema_web3_subgraph = subgraph_builder.compile()
