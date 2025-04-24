@@ -73,9 +73,7 @@ def agent(state: MemoryState, config: RunnableConfig):
 
     node_model = models[model_name].bind_tools(agent_tools + node_tools)
 
-    sys_msg = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)]
-    if memories:
-        sys_msg.append(SystemMessage(content=MEMORY_MESSAGE.format(memories=memories)))
+    sys_msg = [SystemMessage(content=MODEL_SYSTEM_MESSAGE.format(memories=memories))]
 
     messages = merge_message_runs(
         messages=sys_msg + state["messages"]
@@ -93,10 +91,18 @@ MODEL_SYSTEM_MESSAGE = (
     "queries.\n\n"
     "If this is your first interaction with a client, introduce yourself and clearly explain your role.\n"
     "You have access to a set of tools to help you handle client requests efficiently.\n\n"
+
+    "## MEMORIES\n"
+    "Below are your memories of the user, this can also be empty.\n"
+    "<memories> {memories} </memories>\n"
+    "Base your responses on the memories above and the conversation history.\n"
+    "If you don't have any memories, respond naturally and ask the user for more information.\n"
+    "If you have memories, use them to provide a more personalized response.\n\n"
+
     "## TOOL USAGE GUIDELINES\n"
     "1. **Proposal Assistance**:\n"
-    "   - If the user asks for help with a proposal or provides proposal details, use the `web3_create_proposal` "
-    "tool.\n\n"
+    "   - If the user asks for help with or to create a proposal or provides proposal details, use the "
+    "`web3_create_proposal` tool.\n\n"
     "2. **Weekly Task Estimates**:\n"
     "   - If the user asks how long their tasks will take this week, or anything about workload/time estimates,\n"
     "     use the `fetch_weekly_task_estimates_summary` tool.\n\n"
@@ -113,13 +119,6 @@ MODEL_SYSTEM_MESSAGE = (
     "   - Do not mention tool usage explicitly to the user.\n"
     "   - Respond naturally, as if the action was completed directly by you."
 )
-
-MEMORY_MESSAGE = (
-    "# MEMORIES\n"
-    "Below are your memories of the user, this can also be empty. Carefully cater your responses accordingly.\n"
-    "<memories> {memories} </memories>\n"
-)
-
 
 # Initialize Graph
 agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
