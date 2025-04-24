@@ -1,54 +1,40 @@
 # Import general libraries
-from typing import Literal, TypedDict
+from typing import Literal  # , TypedDict
 
 # Import Langgraph
 from langchain_core.messages import SystemMessage, merge_message_runs, trim_messages
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langchain.tools.render import format_tool_to_openai_function
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langgraph.prebuilt import ToolNode
 from langchain_core.messages.utils import count_tokens_approximately
+from langgraph.prebuilt import ToolNode
 from trustcall import create_extractor
 
 # Import utility functions
 from utils.configuration import Configuration
-from utils.models import models
-from utils.nodes import tool_handler
+from utils.models import models, SilentHandler
+from utils.nodes import tool_handler, input_helper
 from utils.schemas import Project, ProjectState
 from utils.tools import calculator
-
-# Import subgraphs
-from graphs.input_handling import input_handler_subgraph
 
 import settings
 
 
 # Tools
-class ToolCall(TypedDict):
+@tool
+def get_user_input():
     """
-        Decision on which tool to use
+        Fake tool to get user input.
     """
-    tool_type: Literal["retry", "finalize"]
+    return
 
 
-def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_handler", END]:  # type: ignore
-    """
-        Contains decisions for the next node to be called in the project proposal process.
-    """
-
-    tool_calls = state["messages"][-1].tool_calls
-
-    # WARNING: this should never be returned unless a use case wasn't handled by the handler.
-    if not tool_calls:
-        return END
-
-    match (tool_calls[0]["args"]["tool_type"]):
-        case "retry":
-            return "project_helper"
-        case "finalize":
-            return "tool_handler"
-
-
-def continue_to_tool(state: MessagesState) -> Literal["input_handler", "tool_executor", END]:  # type: ignore
+def continue_to_tool(state: MessagesState) -> Literal[
+                                                "input_tool_handler",
+                                                "tool_executor",
+                                                "__end__"]:  # type: ignore
     """
         Contains decisions for if the agent needs to use one of its tools or continue with asking
         for user inputs.
@@ -63,26 +49,28 @@ def continue_to_tool(state: MessagesState) -> Literal["input_handler", "tool_exe
     match tool_name:
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
             return "tool_executor"
-    return "input_handler"
+    return "input_tool_handler"
 
 
 # Nodes
-def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectState:
+def project_helper(state: ProjectState, config: RunnableConfig) -> ProjectState:
     """
         Handles the tool call from the parent graph.
     """
+
     configurable = Configuration.from_runnable_config(config)
     model_name = configurable.model_name
     tool_name = "Project"
 
     trimmed_messages = trim_messages(
-        state["messages"][:-1],
+        state["messages"],
         strategy="last",
         token_counter=count_tokens_approximately,
         max_tokens=settings.TOKEN_LIMIT_LARGE,
         start_on="human",
-        end_on=("human", "tool"),
-        allow_partial=False
+        end_on="human",
+        allow_partial=False,
+        include_system=True
     )
 
     merged_messages = list(merge_message_runs(
@@ -98,22 +86,10 @@ def project_helper_node(state: ProjectState, config: RunnableConfig) -> ProjectS
     )
 
     project_details = state.get("project_details", None)
-
     result = proposal_extractor.invoke({"messages": merged_messages, "existing": {"Project": project_details}})
-
     extracted_project_details = result["responses"][0]
 
-    # Confirm the tool call made in the parent graph
-    tool_call_id = state["messages"][-1].tool_calls[0]["id"]
-
-    # Extract the changes made by Trustcall and add them to the message.
-    message = {
-        "content": '',
-        "role": "tool",
-        "tool_call_id": tool_call_id
-    }
-
-    return {"messages": [message], "project_details": extracted_project_details.model_dump(mode="python")}
+    return {"project_details": extracted_project_details.model_dump(mode="python")}
 
 
 def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
@@ -122,10 +98,24 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
         using the agent and responds accordingly.
     """
 
+    silent_handler = SilentHandler()
+
     configurable = Configuration.from_runnable_config(config)
     model_name = configurable.model_name
-    node_model = models[model_name].bind_tools(agent_tools)
+    project_agent_model = models[model_name].bind_tools(node_tools)
+    completion_agent_model = models[model_name].bind_tools(agent_tools)
+
     project_details = state.get("project_details", None)
+
+    input_trimmed_messages = trim_messages(
+        state["messages"],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=settings.TOKEN_LIMIT_SMALL,
+        start_on="human",
+        end_on=("human", "tool"),
+        allow_partial=False
+    )
 
     trimmed_messages = trim_messages(
         state["messages"],
@@ -137,11 +127,22 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
         allow_partial=False
     )
 
-    FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=project_details)
-    FORMATTED_HANDLER_MESSAGE = INTERRUPT_HANDLER_MESSAGE.format(proposal_details=project_details)
+    FORMATTED_ROUTER_MESSAGE = PROPOSAL_ROUTER_MESSAGE.format(proposal_details=project_details)
+    FORMATTED_COMPLETION_MESSAGE = PROPOSAL_COMPLETION_MESSAGE.format(proposal_details=project_details)
 
-    response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + trimmed_messages)
-    return {"messages": [response], "tools": [ToolCall], "handler_message": FORMATTED_HANDLER_MESSAGE}
+    route_response = project_agent_model.invoke(
+        [SystemMessage(content=FORMATTED_ROUTER_MESSAGE)] + input_trimmed_messages,
+        config={"callbacks": [silent_handler]})
+    agent_response = completion_agent_model.invoke(
+        [SystemMessage(content=FORMATTED_COMPLETION_MESSAGE)] + trimmed_messages)
+
+    print("\n\n")
+    print("Agent Response: ", agent_response)
+    print("\n\n")
+    if agent_response:
+        pass
+
+    return {"messages": [route_response]}
 
 
 TRUSTCALL_SYSTEM_MESSAGE = (
@@ -164,24 +165,45 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "- Ask for clarification if required, or proceed with blanks if the instruction is to do so.\n"
 )
 
-PROPOSAL_AGENT_MESSAGE = (
+PROPOSAL_ROUTER_MESSAGE = (
+    "# SYSTEM INSTRUCTIONS\n"
+    "You are assisting the user with completing a proposal form. Your behavior must follow these strict rules:\n\n"
+    "## DO NOT RESPOND WITH ANY TEXT.\n"
+    "- Never respond with natural language.\n"
+    "- Your output must either be a tool call (e.g., `get_user_input`) or an empty string (`''`).\n\n"
+    "## WHEN TO CALL TOOLS:\n"
+    "- If **any required fields are missing or empty**, call `get_user_input`.\n\n"
+    "## WHEN TO RETURN AN EMPTY STRING:\n"
+    "- If the user explicitly says **not to continue**.\n"
+    "- If the user explicitly asks to **save as a draft**.\n"
+    "- If the user instructs to **submit** the proposal and **all required fields are complete**.\n\n"
+    "Currently, the proposal is in the following state:\n"
+    "<details> {proposal_details} </details>\n\n"
+    "Repeat: **You must not generate any messages or explanations**. Respond ONLY using a tool call or return an "
+    "empty response.\n"
+)
+
+PROPOSAL_COMPLETION_MESSAGE = (
+    "**IMPORTANT**: If the user explicitly states to stop or not to continue, you must ignore all "
+    "instructions below and respond with absolutely nothing — no tool calls, no text, no response.\n\n"
     "# PROPOSAL GUIDELINES\n"
-    "Your primary objective is to help the user complete a proposal form, starting from a blank state.\n"
-    "You will collect information from the user, field by field, and may ask clarifying questions as needed.\n"
-    "Always try to suggest the most relevant options based on the user's input.\n\n"
+    "Starting from a blank state, you will collect information from the user, field by field, and may ask "
+    "clarifying questions as needed. Always try to suggest the most relevant options based on the user's input.\n\n"
     "The current state of the proposal (which may be empty) is shown below:\n"
     "<details> {proposal_details} </details>\n\n"
+
     "## INSTRUCTIONS FOR MISSING FIELDS\n"
-    "- Begin by requesting the **title** of the proposal.\n"
+    "- Begin by requesting the `title` of the proposal.\n"
     "- Once the title is provided:\n"
-    "  - Suggest possible **project_type** options based on the title.\n"
+    "  - Suggest possible `project_type` options based on the title.\n"
+    "  - If given a description, infer the `project_type` from it.\n"
     "  - Ask the user to select or confirm the appropriate type.\n"
     "- Proceed to gather each missing field individually, following this sequence:\n"
     "    1. title\n"
     "    2. project_type\n"
     "    3. description\n\n"
     "- After steps 1-3 are filled:\n"
-    "  - Show the user only the current **title**, **project_type**, and **description**.\n"
+    "  - Show the user only the current `title`, `project_type`, and `description`.\n"
     "  - Ask for confirmation and whether they want to refine anything.\n"
     "  - If confirmed, proceed to the next fields:\n"
     "    4. location\n"
@@ -207,40 +229,31 @@ PROPOSAL_AGENT_MESSAGE = (
     "    - Refine or add any more information\n"
     "    - Save it as a draft\n"
     "    - Submit it for review by Scalema Admins\n\n"
-    "- Maintain a friendly and professional tone throughout.\n"
-    "- Include short, encouraging comments when responding to user inputs."
+    "- Include short, encouraging comments when responding to user inputs but always be professional.\n\n"
+    "**IMPORTANT**: If the user explicitly states to stop or not to continue, you must ignore all previous "
+    "instructions and respond with absolutely nothing — no tool calls, no text, no response.\n"
 )
 
-INTERRUPT_HANDLER_MESSAGE = (
-    "# INSTRUCTIONS\n"
-    "You are provided with the current state of the proposal:\n"
-    "<details>{proposal_details}</details>\n\n"
-    "Your role is to carefully evaluate the user's input and determine the appropriate action using a tool.\n"
-    "## Tool Usage Guidelines:\n"
-    "- If the user explicitly states **not to continue**, call `ToolCall` with the `finalize` argument.\n"
-    "- If the user explicitly requests to **save as a draft**, call `ToolCall` with the `finalize` argument.\n"
-    "- If the user explicitly instructs to **submit** the proposal and **all required fields are filled**,"
-    "call `ToolCall` with the `finalize` argument.\n"
-    "- If **any required fields are missing or empty**, call `ToolCall` with the `retry` argument.\n"
-    "- By default, call `ToolCall` with the `retry` argument unless an explicit finalize condition is met."
-)
 
 agent_tools = [calculator]
+node_tools = [get_user_input]
 
 # Initialize Graph
 subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
 
-subgraph_builder.add_node("project_helper", project_helper_node)
-subgraph_builder.add_node("project_agent", project_agent)
-subgraph_builder.add_node("input_handler", input_handler_subgraph)
-subgraph_builder.add_node("tool_handler", tool_handler)
+subgraph_builder.add_node(project_helper)
+subgraph_builder.add_node(project_agent)
+subgraph_builder.add_node(input_helper)
+subgraph_builder.add_node("initial_tool_handler", tool_handler)
+subgraph_builder.add_node("input_tool_handler", tool_handler)
 subgraph_builder.add_node("tool_executor", ToolNode(agent_tools))
 
-subgraph_builder.add_edge(START, "project_helper")
-subgraph_builder.add_edge("project_helper", "project_agent")
+subgraph_builder.add_edge(START, "initial_tool_handler")
+subgraph_builder.add_edge("initial_tool_handler", "project_agent")
 subgraph_builder.add_conditional_edges("project_agent", continue_to_tool)
 subgraph_builder.add_edge("tool_executor", "project_agent")
-subgraph_builder.add_conditional_edges("input_handler", handler_decision)
-subgraph_builder.add_edge("tool_handler", END)
+subgraph_builder.add_edge("input_tool_handler", "input_helper")
+subgraph_builder.add_edge("input_helper", "project_helper")
+subgraph_builder.add_edge("project_helper", "project_agent")
 
 scalema_web3_subgraph = subgraph_builder.compile()
