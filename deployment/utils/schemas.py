@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import Field, BaseModel
 
-from graphs.input_handling import InputState
+from langgraph.graph import MessagesState
 
 
 # Tool Schemas
@@ -88,6 +88,6 @@ class Project(BaseModel):
 
 
 # State Schemas
-class ProjectState(InputState):
+class ProjectState(MessagesState):
     """Used to transfer project information in-between subgraphs."""
     project_details: Project = Field(None, description="Project proposal details.")
