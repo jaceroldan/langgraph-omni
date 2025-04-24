@@ -14,8 +14,8 @@ API_URL = get_settings_variable(
 
 # Memory settings
 MODEL_HISTORY_LENGTH = 4  # Do not use Odd numbers or 400 error occurs "Invalid parameter"
-TOKEN_LIMIT = 3000
-TOKEN_LIMIT_SMALL = 2000
+TOKEN_LIMIT = 2000
+TOKEN_LIMIT_SMALL = 500
 TOKEN_LIMIT_LARGE = 6000
 
 # PGVECTOR
