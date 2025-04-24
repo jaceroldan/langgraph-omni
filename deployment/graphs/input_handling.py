@@ -1,3 +1,5 @@
+# DEPRECATED: This file is deprecated and will be removed in a future version.
+
 # Import general libraries
 from typing import Callable, List
 
@@ -41,7 +43,7 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
     handler_message = state["handler_message"]
 
     trimmed_messages = trim_messages(
-        state["messages"],
+        state["messages"][-1:],
         strategy="last",
         token_counter=count_tokens_approximately,
         max_tokens=settings.TOKEN_LIMIT_SMALL,
