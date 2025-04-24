@@ -29,9 +29,7 @@ from graphs.scalema_web3 import scalema_web3_subgraph
 # Tools
 @tool
 def web3_create_proposal():
-    """
-        Creates a proposal. Routes to `scalema_web3_subgraph` for proposal creation.
-    """
+    """Creates a proposal. Routes to `scalema_web3_subgraph` for proposal creation."""
     return
 
 
@@ -45,12 +43,12 @@ def continue_to_tool(state: MessagesState) -> Literal[
         https://langchain-ai.github.io/langgraph/how-tos/agent-handoffs/#implement-a-handoff-tool
     """
 
-    tool_calls = state["messages"][-1].tool_calls
+    last_message = state["messages"][-1]
     # If there is no function call, then finish
-    if not tool_calls:
+    if not (hasattr(last_message, "tool_calls") and len(last_message.tool_calls)):
         return END
 
-    tool_name = tool_calls[0]["name"]
+    tool_name = last_message.tool_calls[0]["name"]
     match tool_name:
         case "web3_create_proposal":
             return "scalema_web3_subgraph"
@@ -111,6 +109,7 @@ MODEL_SYSTEM_MESSAGE = (
     "     - User's name\n"
     "     - User's job position\n\n"
     "5. **Tool Interaction Etiquette**:\n"
+    "   - You are only allowed to use one tool. Do not call more than one tool in one response.\n"
     "   - Do not mention tool usage explicitly to the user.\n"
     "   - Respond naturally, as if the action was completed directly by you."
 )
