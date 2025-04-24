@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 import uuid
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ class MemoryState(MessagesState):
 
 
 class Memory(BaseModel):
-    memory: Optional[str] = Field(default=None, description="Memory to be stored in the vectorstore.")
+    memory: List[str] = Field(default=None, description="Memory to be stored in the vectorstore.")
 
 
 def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
@@ -41,7 +41,8 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
     memories = state["memories"]
     tool_name = "Memory"
 
-    existing_memories = ([existing_item for existing_item in memories] if memories else None)
+    existing_memories = (
+        [(idx, tool_name, existing_item) for idx, existing_item in enumerate(memories)] if memories else None)
 
     memory_extractor = create_extractor(
         node_model,
@@ -55,7 +56,8 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
 
     extracted_memories = []
     for r in result['responses']:
-        extracted_memories.append(save_recall_memory.invoke(r.memory, config))
+        for mem in r.memory:
+            extracted_memories.append(save_recall_memory.invoke(mem, config))
 
     # Delete all previous messages since action has already been summarized
     removed_messages = [RemoveMessage(id=m.id) for m in messages[:-settings.MODEL_HISTORY_LENGTH]]
@@ -98,12 +100,13 @@ def save_recall_memory(memory: str, config: RunnableConfig) -> str:
     configuration = Configuration.from_runnable_config(config)
     user_profile_pk = configuration.user_profile_pk
     id = str(uuid.uuid4())
-    document = Document(
+
+    doc = Document(
         page_content=memory, id=id, metadata={"user_profile_pk": user_profile_pk}
     )
-    recall_vector_store.add_documents([document])
 
-    print(f"Saved memory: {document}")
+    recall_vector_store.add_documents([doc])
+
     return memory
 
 
@@ -122,7 +125,6 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
         query, k=3, filter=_filter_function
     )
 
-    print(f"Found {len(documents)} memories:", f"{documents}")
     return [document.page_content for document in documents]
 
 
@@ -135,13 +137,15 @@ SUMMARY_MESSAGE = (
     "# SYSTEM INSTRUCTIONS\n"
     "Your only task is to create a short but comprehensive summary of the previous conversations "
     "for you to remember later. If there are no conversations, then return an empty array. Make "
-    "sure to update the memory with the latest information. Some examples of what you should remember are:\n"
-    "\t- User's name\n"
-    "\t- User's job position\n"
-    "\t- What the user asked of you and the result of that action\n"
+    "sure to update the memory with the latest information. Do not overwrite memories of things that the user "
+    "asked you to do.\n\n"
+    "Some examples of what you should remember are:\n"
+    "- User's name\n"
+    "- User's job position\n"
+    "- What the user asked of you and the result of that action\n"
     "Examples of a memory are:\n"
-    "\t- User's name is John Doe\n"
-    "\t- User's job position is Software Engineer\n"
-    "\t- User asked for their task estimates and the system provided an estimate of 1.23 hours to complete.\n"
+    "- User's name is John Doe\n"
+    "- User's job position is Software Engineer\n"
+    "- User asked for their task estimates and the system provided an estimate of 1.23 hours to complete.\n"
     "Below is the conversation history:\n"
 )
