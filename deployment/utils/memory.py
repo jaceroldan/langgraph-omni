@@ -1,12 +1,13 @@
-from typing import List
+from typing import List, Tuple
 import uuid
+from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 from langchain_openai.embeddings import OpenAIEmbeddings
-from langchain_core.vectorstores import InMemoryVectorStore
-# from langchain_postgres import PGEngine, PGVectorStore
+# from langchain_core.vectorstores import InMemoryVectorStore
+from langchain.vectorstores.pgvector import PGVector, DistanceStrategy
 from langgraph.graph import MessagesState
 from langchain_core.messages import get_buffer_string, RemoveMessage, SystemMessage
 from trustcall import create_extractor
@@ -20,7 +21,7 @@ import settings
 
 
 class Memories(BaseModel):
-    memory: List[str] = Field(default=None, description="Memory to be stored in the vectorstore.")
+    memory: List[Tuple[str, str]] = Field(default=None, description="Memory to be stored in the vectorstore.")
 
 
 class MemoryState(MessagesState):
@@ -101,8 +102,15 @@ def save_recall_memory(memory: str, config: RunnableConfig) -> str:
     user_profile_pk = configuration.user_profile_pk
     id = str(uuid.uuid4())
 
+    timestamp = datetime.now().isoformat()
+
     doc = Document(
-        page_content=memory, id=id, metadata={"user_profile_pk": user_profile_pk}
+        page_content=memory,
+        id=id,
+        metadata={
+            "user_profile_pk": user_profile_pk,
+            "timestamp": timestamp
+        }
     )
 
     recall_vector_store.add_documents([doc])
@@ -118,19 +126,30 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
     configuration = Configuration.from_runnable_config(config)
     user_profile_pk = configuration.user_profile_pk
 
-    def _filter_function(doc: Document) -> bool:
-        return doc.metadata.get("user_profile_pk") == user_profile_pk
+    # Filter to only the last 7 days
+    since = (datetime.now() - timedelta(days=7)).isoformat()
 
     documents = recall_vector_store.similarity_search(
-        query, k=3, filter=_filter_function
+        query,
+        k=3,
+        filter={
+            "user_profile_pk": user_profile_pk,
+            "timestamp": {"$gte": since}
+        }
     )
 
-    return [document.page_content for document in documents]
+    return [(document.page_content, document.metadata.get("timestamp")) for document in documents]
 
-
-recall_vector_store = InMemoryVectorStore(OpenAIEmbeddings())
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+
+recall_vector_store = PGVector(
+    collection_name=settings.COLLECTION_NAME,
+    connection_string=settings.PGVECTOR_CONNECTION_STRING,
+    embedding_function=embeddings,
+    distance_strategy=DistanceStrategy.COSINE
+)
+
 
 # Strings
 SUMMARY_MESSAGE = (

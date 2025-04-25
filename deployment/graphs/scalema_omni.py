@@ -1,5 +1,7 @@
 # Import general libraries
 from typing import Literal
+from datetime import datetime
+
 
 # Import Langgraph
 from langgraph.graph import StateGraph, MessagesState, START, END
@@ -73,7 +75,12 @@ def agent(state: MemoryState, config: RunnableConfig):
 
     node_model = models[model_name].bind_tools(agent_tools + node_tools)
 
-    sys_msg = [SystemMessage(content=MODEL_SYSTEM_MESSAGE.format(memories=memories))]
+    sys_msg = [
+        SystemMessage(content=MODEL_SYSTEM_MESSAGE.format(
+            memories=memories,
+            timestamp=datetime.now()
+        ))
+    ]
 
     messages = merge_message_runs(
         messages=sys_msg + state["messages"]
@@ -118,7 +125,9 @@ MODEL_SYSTEM_MESSAGE = (
     "5. **Tool Interaction Etiquette**:\n"
     "   - You are only allowed to use one tool. Do not call more than one tool in one response.\n"
     "   - Do not mention tool usage explicitly to the user.\n"
-    "   - Respond naturally, as if the action was completed directly by you."
+    "   - Respond naturally, as if the action was completed directly by you.\n\n"
+
+    "**Current Time**: {timestamp}"
 )
 
 # Initialize Graph
