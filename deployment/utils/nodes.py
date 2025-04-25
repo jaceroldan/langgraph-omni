@@ -10,10 +10,10 @@ def fake_node(state):
 
 def tool_handler(state: MessagesState):
     """
-        Fake node to used for exiting the subgraph.
-        Only use this node whenever there is a tool call without a tool message.
+        Fake node to used whenever there is a tool call without
+        a tool message.
     """
-    # Confirm the tool call made in the parent graph
+
     tool_calls = state["messages"][-1].tool_calls
 
     tool_call_messages = []

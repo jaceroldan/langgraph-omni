@@ -19,12 +19,12 @@ from utils.models import models
 import settings
 
 
-class MemoryState(MessagesState):
-    memories: List[str]
-
-
-class Memory(BaseModel):
+class Memories(BaseModel):
     memory: List[str] = Field(default=None, description="Memory to be stored in the vectorstore.")
+
+
+class MemoryState(MessagesState):
+    memories: Memories
 
 
 def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
@@ -39,14 +39,14 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
 
     messages = state["messages"]
     memories = state["memories"]
-    tool_name = "Memory"
+    tool_name = "Memories"
 
     existing_memories = (
         [(idx, tool_name, existing_item) for idx, existing_item in enumerate(memories)] if memories else None)
 
     memory_extractor = create_extractor(
         node_model,
-        tools=[Memory],
+        tools=[Memories],
         tool_choice=tool_name,
         enable_inserts=True
     )
