@@ -19,5 +19,9 @@ TOKEN_LIMIT_SMALL = 500
 TOKEN_LIMIT_LARGE = 6000
 
 # PGVECTOR
-VECTOR_SIZE = 768
-TABLE_NAME = "memory_collection"
+PGVECTOR_CONNECTION_STRING = get_settings_variable(
+    "PGVECTOR_CONNECTION_STRING",
+    default="postgresql+psycopg2://bposeatsuser:bposeatspassword@host.docker.internal:5432/bposeats",
+    required=True
+)
+COLLECTION_NAME = "recall_memories"
