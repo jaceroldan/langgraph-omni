@@ -111,7 +111,9 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     node_model = models[model_name].bind_tools(agent_tools)
     project_details = state["project_details"]
 
-    FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=project_details)
+    FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(
+        time=datetime.now().isoformat(),
+        proposal_details=project_details)
     FORMATTED_HANDLER_MESSAGE = INTERRUPT_HANDLER_MESSAGE.format(proposal_details=project_details)
 
     response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + state["messages"])
@@ -122,7 +124,7 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "Your only instruction is to reflect on the interaction and call the appropriate tool. "
     "Always use the provided tool to retain any necessary information. "
     "Use parallel tool calls to handle updates and insertions simultaneously. "
-    "Never provide data about the proposal that are not from the user's own messages."
+    "Never provide data about the proposal that are not from the user's own messages. "
     "\nSystem Time: {time}"
     "The following is the current state of the proposal: \n{proposal_details}"
 )
@@ -152,11 +154,11 @@ PROPOSAL_AGENT_MESSAGE = (
     "\n\t\t6. available_shares"
     "\n\t-After 5-6 has been filled, calculate the per-share price by calling `calculator`. After "
     "calculating, inform the user about this and reassure them that they can readjust if needed."
-    " Do not ask to continue unless they are alright about the share price then you can ask to continue."
+    "Do not ask to continue unless they are alright about the share price then you can ask to continue."
     "\n\t\t7. minimum_viable_fund"
     "\n\t\t8. funding_date_completion"
     "\n\t-For 9-11, always consider the context of the proposal and suggest possible important items for the "
-    "user to provide."
+    "user to provide. Remember, don't accept dates that are before the System Time."
     "\n\t\t9. key_milestone_dates"
     "\n\t\t10. financial_documents"
     "\n\t\t11. legal_documents"
@@ -166,7 +168,9 @@ PROPOSAL_AGENT_MESSAGE = (
     "for you to refine the proposal."
     "\nLastly, before finishing, always ask the user if they would like to save it as a draft and refine "
     "it later or to submit it for review by Scalema Admins."
-    "\nAlways be friendly and include a short comment on the user's response but be professional. "
+    "\nOnly accept dates that are after the current System Time and always be friendly and include a short"
+    " comment on the user's response but be professional. "
+    "\nSystem Time: {time}"
 )
 
 INTERRUPT_HANDLER_MESSAGE = (
