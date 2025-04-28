@@ -34,11 +34,10 @@
 # from langgraph.store.memory import InMemoryStore
 
 # import configuration
-# from api_caller import fetch_task_counts, fetch_shift_logs
 
 # ## Utilities
 
-# Inspect the tool calls for Trustcall
+# # Inspect the tool calls for Trustcall
 # class Spy:
 #     def __init__(self):
 #         self.called_tools = []
@@ -60,7 +59,7 @@
 
 #     Args:
 #         tool_calls: List of tool calls from the model
-#         schema_name: Name of the schema tool (e.g. "Profile")
+#         schema_name: Name of the schema tool (e.g., "Memory", "ToDo", "Profile")
 #     """
 #     # Initialize list of changes
 #     changes = []
@@ -117,14 +116,41 @@
 # class Profile(BaseModel):
 #     """This is the profile of the user you are chatting with"""
 #     name: Optional[str] = Field(description="The user's name", default=None)
+#     location: Optional[str] = Field(description="The user's location", default=None)
 #     job: Optional[str] = Field(description="The user's job", default=None)
+#     connections: list[str] = Field(
+#         description="Personal connection of the user, such as family members, friends, or coworkers",
+#         default_factory=list
+#     )
+#     interests: list[str] = Field(
+#         description="Interests that the user has",
+#         default_factory=list
+#     )
+
+# # ToDo schema
+# class ToDo(BaseModel):
+#     task: str = Field(description="The task to be completed.")
+#     time_to_complete: Optional[int] = Field(description="Estimated time to complete the task (minutes).")
+#     deadline: Optional[datetime] = Field(
+#         description="When the task needs to be completed by (if applicable)",
+#         default=None
+#     )
+#     solutions: list[str] = Field(
+#         description="List of specific, actionable solutions (e.g., specific ideas, service providers, or concrete options relevant to completing the task)",
+#         min_items=1,
+#         default_factory=list
+#     )
+#     status: Literal["not started", "in progress", "done", "archived"] = Field(
+#         description="Current status of the task",
+#         default="not started"
+#     )
 
 # ## Initialize the model and tools
 
 # # Update memory tool
-# class ChooseTask(TypedDict):
-#     """ Decision on what tool to use """
-#     update_type: Literal['user', 'fetch_task_count', 'create_shift_summary']
+# class UpdateMemory(TypedDict):
+#     """ Decision on what memory type to update """
+#     update_type: Literal['user', 'todo', 'instructions']
 
 # # Initialize the model
 # model = ChatOpenAI(model="gpt-4o", temperature=0)
@@ -141,27 +167,45 @@
 # # Chatbot instruction for choosing what to update and what tools to call
 # MODEL_SYSTEM_MESSAGE = """You are a helpful chatbot.
 
-# You have a long term memory which keeps track of:
+# You are designed to be a companion to a user, helping them keep track of their ToDo list.
+
+# You have a long term memory which keeps track of three things:
 # 1. The user's profile (general information about them)
+# 2. The user's ToDo list
+# 3. General instructions for updating the ToDo list
 
 # Here is the current User Profile (may be empty if no information has been collected yet):
 # <user_profile>
 # {user_profile}
 # </user_profile>
 
+# Here is the current ToDo List (may be empty if no tasks have been added yet):
+# <todo>
+# {todo}
+# </todo>
+
+# Here are the current user-specified preferences for updating the ToDo list (may be empty if no preferences have been specified yet):
+# <instructions>
+# {instructions}
+# </instructions>
+
 # Here are your instructions for reasoning about the user's messages:
 
 # 1. Reason carefully about the user's messages as presented below.
 
 # 2. Decide whether any of the your long-term memory should be updated:
-# - If personal information was provided about the user, update the user's profile by calling ChooseTask tool with type `user`
-# - If the user is asking for the amount of tasks they have, provide information by calling ChooseTask tool with type `fetch_task_count`
-# - If the user wants a summary of their tasks for the day, provide it by calling ChooseTask tool with type `create_shift_summary`
+# - If personal information was provided about the user, update the user's profile by calling UpdateMemory tool with type `user`
+# - If tasks are mentioned, update the ToDo list by calling UpdateMemory tool with type `todo`
+# - If the user has specified preferences for how to update the ToDo list, update the instructions by calling UpdateMemory tool with type `instructions`
 
 # 3. Tell the user that you have updated your memory, if appropriate:
 # - Do not tell the user you have updated the user's profile
+# - Tell the user them when you update the todo list
+# - Do not tell the user that you have updated instructions
 
-# 4. Respond naturally to user user after a tool call was made to save memories, or if no tool call was made."""
+# 4. Err on the side of updating the todo list. No need to ask for explicit permission.
+
+# 5. Respond naturally to user user after a tool call was made to save memories, or if no tool call was made."""
 
 # # Trustcall instruction
 # TRUSTCALL_INSTRUCTION = """Reflect on following interaction.
@@ -172,6 +216,16 @@
 
 # System Time: {time}"""
 
+# # Instructions for updating the ToDo list
+# CREATE_INSTRUCTIONS = """Reflect on the following interaction.
+
+# Based on this interaction, update your instructions for how to update ToDo list items. Use any feedback from the user to update how they like to have items added, etc.
+
+# Your current instructions are:
+
+# <current_instructions>
+# {current_instructions}
+# </current_instructions>"""
 
 # ## Node definitions
 
@@ -191,10 +245,23 @@
 #     else:
 #         user_profile = None
 
-#     system_msg = MODEL_SYSTEM_MESSAGE.format(user_profile=user_profile)
+#     # Retrieve people memory from the store
+#     namespace = ("todo", user_id)
+#     memories = store.search(namespace)
+#     todo = "\n".join(f"{mem.value}" for mem in memories)
+
+#     # Retrieve custom instructions
+#     namespace = ("instructions", user_id)
+#     memories = store.search(namespace)
+#     if memories:
+#         instructions = memories[0].value
+#     else:
+#         instructions = ""
+
+#     system_msg = MODEL_SYSTEM_MESSAGE.format(user_profile=user_profile, todo=todo, instructions=instructions)
 
 #     # Respond using memory as well as the chat history
-#     response = model.bind_tools([ChooseTask], parallel_tool_calls=False).invoke([SystemMessage(content=system_msg)]+state["messages"])
+#     response = model.bind_tools([UpdateMemory], parallel_tool_calls=False).invoke([SystemMessage(content=system_msg)]+state["messages"])
 
 #     return {"messages": [response]}
 
@@ -238,41 +305,86 @@
 #     # Return tool message with update verification
 #     return {"messages": [{"role": "tool", "content": "updated profile", "tool_call_id":tool_calls[0]['id']}]}
 
-# def fetch_task_count(state: MessagesState, config: RunnableConfig):
+# def update_todos(state: MessagesState, config: RunnableConfig, store: BaseStore):
 
-#     """Returns the current number of tasks assigned to the user"""
+#     """Reflect on the chat history and update the memory collection."""
 
-#     workforce_id = config["configurable"]["workforce_id"]
-#     auth_token = config["configurable"]["auth_token"]
+#     # Get the user ID from the config
+#     configurable = configuration.Configuration.from_runnable_config(config)
+#     user_id = configurable.user_id
 
-#     task_count = fetch_task_counts(auth_token, workforce_id)
+#     # Define the namespace for the memories
+#     namespace = ("todo", user_id)
 
-#     response = """The server returned:
-#     {task_number}
-#     Relay this information to the user""".format(task_number=task_count)
+#     # Retrieve the most recent memories for context
+#     existing_items = store.search(namespace)
 
-#     tool_calls = state["messages"][-1].tool_calls
-#     return {"messages": [{"role": "tool", "content": response, "tool_call_id":tool_calls[0]['id']}]}
+#     # Format the existing memories for the Trustcall extractor
+#     tool_name = "ToDo"
+#     existing_memories = ([(existing_item.key, tool_name, existing_item.value)
+#                           for existing_item in existing_items]
+#                           if existing_items
+#                           else None
+#                         )
 
-# def create_shift_summary(state:MessagesState, config: RunnableConfig):
+#     # Merge the chat history and the instruction
+#     TRUSTCALL_INSTRUCTION_FORMATTED=TRUSTCALL_INSTRUCTION.format(time=datetime.now().isoformat())
+#     updated_messages=list(merge_message_runs(messages=[SystemMessage(content=TRUSTCALL_INSTRUCTION_FORMATTED)] + state["messages"][:-1]))
 
-#     """Returns a short summary of the tasks worked on the current shift"""
+#     # Initialize the spy for visibility into the tool calls made by Trustcall
+#     spy = Spy()
 
-#     auth_token = config["configurable"]["auth_token"]
-#     employment_id = config["configurable"]["employment_id"]
-#     shift_start = config["configurable"]["shift_start"]
+#     # Create the Trustcall extractor for updating the ToDo list
+#     todo_extractor = create_extractor(
+#     model,
+#     tools=[ToDo],
+#     tool_choice=tool_name,
+#     enable_inserts=True
+#     ).with_listeners(on_end=spy)
 
-#     shifts = fetch_shift_logs(auth_token, employment_id, shift_start)
+#     # Invoke the extractor
+#     result = todo_extractor.invoke({"messages": updated_messages,
+#                                          "existing": existing_memories})
 
-#     response = """Below are the titles of the tasks that the user has done:
-#     {shifts}
-#     Provide a short precise summary for the tasks done afterward. If above is empty, inform the user that they did not do anything today.""".format(shifts=shifts)
+#     # Save save the memories from Trustcall to the store
+#     for r, rmeta in zip(result["responses"], result["response_metadata"]):
+#         store.put(namespace,
+#                   rmeta.get("json_doc_id", str(uuid.uuid4())),
+#                   r.model_dump(mode="json"),
+#             )
 
-#     tool_calls = state["messages"][-1].tool_calls
-#     return {"messages": [{"role": "tool", "content": response, "tool_call_id":tool_calls[0]['id']}]}
+#     # Respond to the tool call made in task_mAIstro, confirming the update
+#     tool_calls = state['messages'][-1].tool_calls
+
+#     # Extract the changes made by Trustcall and add the the ToolMessage returned to task_mAIstro
+#     todo_update_msg = extract_tool_info(spy.called_tools, tool_name)
+#     return {"messages": [{"role": "tool", "content": todo_update_msg, "tool_call_id":tool_calls[0]['id']}]}
+
+# def update_instructions(state: MessagesState, config: RunnableConfig, store: BaseStore):
+
+#     """Reflect on the chat history and update the memory collection."""
+
+#     # Get the user ID from the config
+#     configurable = configuration.Configuration.from_runnable_config(config)
+#     user_id = configurable.user_id
+
+#     namespace = ("instructions", user_id)
+
+#     existing_memory = store.get(namespace, "user_instructions")
+
+#     # Format the memory in the system prompt
+#     system_msg = CREATE_INSTRUCTIONS.format(current_instructions=existing_memory.value if existing_memory else None)
+#     new_memory = model.invoke([SystemMessage(content=system_msg)]+state['messages'][:-1] + [HumanMessage(content="Please update the instructions based on the conversation")])
+
+#     # Overwrite the existing memory in the store
+#     key = "user_instructions"
+#     store.put(namespace, key, {"memory": new_memory.content})
+#     tool_calls = state['messages'][-1].tool_calls
+#     # Return tool message with update verification
+#     return {"messages": [{"role": "tool", "content": "updated instructions", "tool_call_id":tool_calls[0]['id']}]}
 
 # # Conditional edge
-# def route_message(state: MessagesState) -> Literal[ "update_profile", "fetch_task_count", "create_shift_summary", END]:
+# def route_message(state: MessagesState, config: RunnableConfig, store: BaseStore) -> Literal[END, "update_todos", "update_instructions", "update_profile"]:
 
 #     """Reflect on the memories and chat history to decide whether to update the memory collection."""
 #     message = state['messages'][-1]
@@ -282,10 +394,10 @@
 #         tool_call = message.tool_calls[0]
 #         if tool_call['args']['update_type'] == "user":
 #             return "update_profile"
-#         elif tool_call['args']['update_type'] == "fetch_task_count":
-#             return "fetch_task_count"
-#         elif tool_call['args']['update_type'] == "create_shift_summary":
-#             return "create_shift_summary"
+#         elif tool_call['args']['update_type'] == "todo":
+#             return "update_todos"
+#         elif tool_call['args']['update_type'] == "instructions":
+#             return "update_instructions"
 #         else:
 #             raise ValueError
 
@@ -294,16 +406,16 @@
 
 # # Define the flow of the memory extraction process
 # builder.add_node(task_mAIstro)
+# builder.add_node(update_todos)
 # builder.add_node(update_profile)
-# builder.add_node(fetch_task_count)
-# builder.add_node(create_shift_summary)
+# builder.add_node(update_instructions)
 
 # # Define the flow
 # builder.add_edge(START, "task_mAIstro")
 # builder.add_conditional_edges("task_mAIstro", route_message)
+# builder.add_edge("update_todos", "task_mAIstro")
 # builder.add_edge("update_profile", "task_mAIstro")
-# builder.add_edge("fetch_task_count", "task_mAIstro")
-# builder.add_edge("create_shift_summary", "task_mAIstro")
+# builder.add_edge("update_instructions", "task_mAIstro")
 
 # # Compile the graph
 # graph = builder.compile()
