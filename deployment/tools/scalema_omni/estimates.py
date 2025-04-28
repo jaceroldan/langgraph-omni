@@ -108,9 +108,9 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     workforce_id = configuration.workforce_id
     model_name = configuration.model_name
     node_model = models[model_name]
-
+    is_web = configuration.is_web
     response = fetch_weekly_task_estimates(
-        auth_token, workforce_id, user_profile_pk, x_timezone)
+        auth_token, workforce_id, user_profile_pk, x_timezone, is_web)
 
     if response:
         response = response['data']
@@ -124,14 +124,14 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     else:
         ai_estimation_hours = 0
 
-    response = """
-        Below is the estimated number of hours required to complete the tasks
-        the system has generated for the user:
-        {ai_estimation_hours}
-
-        Discuss with them how many hours are needed for the current week's
-        tasks. If there are no tasks remaining, congratulate them on
-        completing their work for the week and encourage them to relax.
-    """.format(ai_estimation_hours=ai_estimation_hours)
-
-    return response
+    # Temporary workaround: force the LLM to format its reply cleanly by
+    # injecting a “system_message” instruction into the tool output.
+    # Because LangGraph currently auto-prepends the raw tool return value
+    return {
+        "ai_estimation_hours": ai_estimation_hours,
+        "system_message": (
+            "Start your reply with a blank space and the word 'Hours' "
+            "right after. Proceed to construct your response."
+            "Example: ' Hours. *Insert LLM Response*'"
+        )
+    }

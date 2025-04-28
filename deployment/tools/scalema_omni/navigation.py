@@ -31,6 +31,15 @@ def fetch_page_url(
         config: RunnableConfig,
         state: Annotated[dict, InjectedState]
         ):
+    """
+        Attempts to find and return the most relevant page URL from the sitemap
+        based on the user's query. It searches through sitemap.xml, compares
+        the query against page descriptions using vector similarity, and returns
+        the best-matching path if it meets a similarity threshold.
+
+        Use this tool when the user asks for help finding a specific page or
+        content on the site.
+    """
     user_query = state["messages"][-2].content.strip()
 
     try:
