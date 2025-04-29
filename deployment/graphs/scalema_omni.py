@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.store.postgres import PostgresStore
 from langgraph.prebuilt import ToolNode
+from langgraph.pregel import RetryPolicy
 
 # Import utility functions
 from utils.configuration import Configuration
@@ -138,7 +139,7 @@ builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node(load_memory)
-builder.add_node(memory_node)
+builder.add_node(memory_node, retry=RetryPolicy(max_attempts=3))
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
 
