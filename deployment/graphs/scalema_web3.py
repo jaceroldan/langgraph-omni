@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.prebuilt import ToolNode
+from langgraph.pregel import RetryPolicy
 from trustcall import create_extractor
 
 # Import utility functions
@@ -255,7 +256,7 @@ node_tools = [get_user_input, finish_proposal]
 # Initialize Graph
 subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
 
-subgraph_builder.add_node(project_helper)
+subgraph_builder.add_node(project_helper,  retry=RetryPolicy(max_attempts=3))
 subgraph_builder.add_node(project_agent)
 subgraph_builder.add_node(input_helper)
 subgraph_builder.add_node("initial_tool_handler", tool_handler)
