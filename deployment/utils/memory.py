@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 from langchain_core.documents import Document
 from langchain_openai.embeddings import OpenAIEmbeddings
-# from langchain_core.vectorstores import InMemoryVectorStore
+
+# TODO: Migrate PGVector
+# https://github.com/langchain-ai/langchain-postgres/blob/main/examples/migrate_pgvector_to_pgvectorstore.ipynb
 from langchain.vectorstores.pgvector import PGVector, DistanceStrategy
 from langgraph.graph import MessagesState
 from langchain_core.messages import get_buffer_string, RemoveMessage, SystemMessage
