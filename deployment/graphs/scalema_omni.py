@@ -2,7 +2,6 @@
 from typing import Literal
 from datetime import datetime
 
-
 # Import Langgraph
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage, merge_message_runs
@@ -20,13 +19,13 @@ from utils.memory import (
     MemoryState,
     save_recall_memory,
     search_recall_memories,
-    load_memory,
     memory_summarizer)
 from settings import POSTGRES_URI
 from utils.estimates import fetch_weekly_task_estimates_summary
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
+from graphs.initialization import init_graph
 
 
 # Tools
@@ -147,14 +146,14 @@ node_tools = [web3_create_proposal]
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
-builder.add_node(load_memory)
 builder.add_node(memory_summarizer, retry=RetryPolicy(max_attempts=3))
+builder.add_node("initialization", init_graph)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
 builder.add_node("memory_executor", ToolNode(memory_tools))
 
-builder.add_edge(START, "load_memory")
-builder.add_edge("load_memory", "agent")
+builder.add_edge(START, "initialization")
+builder.add_edge("initialization", "agent")
 builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("memory_summarizer", "agent")
 builder.add_edge("scalema_web3_subgraph", "memory_summarizer")

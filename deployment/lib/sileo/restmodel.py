@@ -14,12 +14,12 @@ class ModelManager:
         self.model = model
 
     def get(self, pk, extras=None):
-        url = f"{self.model.base_url}get/{pk}"
+        url = f"{self.model.base_url}/get/{pk}"
         if extras:
             url += f"?{self._parse_get_params(extras)}"
 
     def filter(self, filters=None, excludes=None):
-        url = f"{self.model.base_url}filter/"
+        url = f"{self.model.base_url}/filter/"
         query = self._parse_get_params(filters or {})
         if query:
             url += f"?{query}"
