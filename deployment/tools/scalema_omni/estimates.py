@@ -130,8 +130,9 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     return {
         "ai_estimation_hours": ai_estimation_hours,
         "system_message": (
-            "Start your reply with a blank space and the word 'Hours' "
+            "If the user has tasks, start your reply with a blank space and the word 'Hours' "
             "right after. Proceed to construct your response."
             "Example: ' Hours. *Insert LLM Response*'"
+            "If the user doesn't have any tasks, just send your response immediately."
         )
     }
