@@ -16,7 +16,7 @@ def initialize(state: MemoryState, config: RunnableConfig):
     configuration = Configuration.from_runnable_config(config)
     auth_token = configuration.auth_token
 
-    # Set Default Headers
+    # Set Default properties
     Defaults.headers = {
         'Authorization': auth_token,
         'Content-Type': 'application/json',

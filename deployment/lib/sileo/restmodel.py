@@ -28,6 +28,44 @@ class ModelManager:
             url += self._parse_get_params(excludes)
         return self._fetch("GET", url)
 
+    def form_dict(self, filter=None):
+        url = f"{self.model.base_url}/form-info/"
+        if filter:
+            if not isinstance(filter, dict):
+                filter = {"pk": filter}
+            url += f"?{self._parse_get_params(filter)}"
+        return self._fetch("GET", url)
+
+    def create(self, formdata, extras=None):
+        url = f"{self.model.base_url}/create/"
+        if extras:
+            url += f"?{self._parse_get_params(extras)}"
+        return self._fetch("POST", url, formdata)
+
+    def update(self, filter, formdata, extras=None):
+        if not isinstance(filter, dict):
+            filter = {"pk": filter}
+        url = f"{self.model.base_url}/update/"
+        query = self._parse_get_params(filter)
+        if query:
+            url += f"?{query}"
+        if extras:
+            url += "&" if query else "?"
+            url += self._parse_get_params(extras)
+        return self._fetch("POST", url, formdata)
+
+    def delete(self, filter, extras=None):
+        if not isinstance(filter, dict):
+            filter = {"pk": filter}
+        url = f"{self.model.base_url}/delete/"
+        query = self._parse_get_params(filter)
+        if query:
+            url += f"?{query}"
+        if extras:
+            url += "&" if query else "?"
+            url += self._parse_get_params(extras)
+        return self._fetch("POST", url)
+
     def _fetch(self, method, url, data=None):
         full_url = f"{Defaults.base_url}{url}" if Defaults.base_url else url
         headers = {
