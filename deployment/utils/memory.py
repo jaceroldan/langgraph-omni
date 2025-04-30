@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 import uuid
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
@@ -23,14 +23,17 @@ import settings
 
 
 class Memories(BaseModel):
-    memory: List[Tuple[str, str]] = Field(default=None, description="Memory to be stored in the vectorstore.")
+    memory_list: List[str] = Field(
+        default=None,
+        description="Memory to be stored in the vectorstore."
+    )
 
 
 class MemoryState(MessagesState):
     memories: Memories
 
 
-def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
+def memory_summarizer(state: MemoryState, config: RunnableConfig) -> MemoryState:
     """
         Processes previous messages and optimizes them to reduce token usage. Also
         summarizes the messages and appends them to the thread memory.
@@ -44,8 +47,7 @@ def memory_node(state: MemoryState, config: RunnableConfig) -> MemoryState:
     memories = state["memories"]
     tool_name = "Memories"
 
-    existing_memories = (
-        [(idx, tool_name, existing_item) for idx, existing_item in enumerate(memories)] if memories else None)
+    existing_memories = [(tool_name, memory) for memory in memories]
 
     memory_extractor = create_extractor(
         node_model,
@@ -90,7 +92,7 @@ def load_memory(state: MemoryState, config: RunnableConfig) -> MemoryState:
     convo_str = tokenizer.decode(tokenizer.encode(convo_str)[:2048])
     recall_memories = search_recall_memories.invoke(convo_str, config)
     return {
-        "memories": recall_memories
+        "memories": memories + recall_memories
     }
 
 
@@ -140,7 +142,8 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
         }
     )
 
-    return [(document.page_content, document.metadata.get("timestamp")) for document in documents]
+    # return [(document.page_content, document.metadata.get("timestamp")) for document in documents]
+    return [document.page_content for document in documents]
 
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")

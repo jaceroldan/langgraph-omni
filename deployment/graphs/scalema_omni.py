@@ -21,7 +21,7 @@ from utils.memory import (
     save_recall_memory,
     search_recall_memories,
     load_memory,
-    memory_node)
+    memory_summarizer)
 from settings import POSTGRES_URI
 from utils.estimates import fetch_weekly_task_estimates_summary
 
@@ -39,6 +39,7 @@ def web3_create_proposal():
 def continue_to_tool(state: MessagesState) -> Literal[
                                                 "scalema_web3_subgraph",
                                                 "tool_executor",
+                                                "memory_executor",
                                                 "__end__"]:
     """
         Decide on which tool to use
@@ -55,6 +56,8 @@ def continue_to_tool(state: MessagesState) -> Literal[
     match tool_name:
         case "web3_create_proposal":
             return "scalema_web3_subgraph"
+        case _ if tool_name in [tool.get_name() for tool in memory_tools]:
+            return "memory_executor"
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
             return "tool_executor"
         case _:
@@ -74,7 +77,8 @@ def agent(state: MemoryState, config: RunnableConfig):
     model_name = configuration.model_name
     memories = state.get("memories")
 
-    node_model = models[model_name].bind_tools(agent_tools + node_tools)
+    tools = memory_tools + agent_tools + node_tools
+    node_model = models[model_name].bind_tools(tools=tools, parallel_tool_calls=False)
 
     sys_msg = [
         SystemMessage(content=MODEL_SYSTEM_MESSAGE.format(
@@ -132,23 +136,26 @@ MODEL_SYSTEM_MESSAGE = (
 )
 
 # Initialize Graph
-agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
+memory_tools = [save_recall_memory, search_recall_memories]
+agent_tools = [fetch_weekly_task_estimates_summary]
 node_tools = [web3_create_proposal]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node(load_memory)
-builder.add_node(memory_node, retry=RetryPolicy(max_attempts=3))
+builder.add_node(memory_summarizer, retry=RetryPolicy(max_attempts=3))
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
+builder.add_node("memory_executor", ToolNode(memory_tools))
 
 builder.add_edge(START, "load_memory")
 builder.add_edge("load_memory", "agent")
 builder.add_conditional_edges("agent", continue_to_tool)
-builder.add_edge("memory_node", "agent")
-builder.add_edge("scalema_web3_subgraph", "memory_node")
-builder.add_edge("tool_executor", "memory_node")
+builder.add_edge("memory_summarizer", "agent")
+builder.add_edge("scalema_web3_subgraph", "memory_summarizer")
+builder.add_edge("tool_executor", "memory_summarizer")
+builder.add_edge("memory_executor", "agent")  # We don't want to process memories here
 
 with PostgresStore.from_conn_string(POSTGRES_URI) as store, \
      PostgresSaver.from_conn_string(POSTGRES_URI) as checkpointer:
