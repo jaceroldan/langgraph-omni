@@ -22,10 +22,14 @@ from utils.models import models
 import settings
 
 
+class MemoryInstance(BaseModel):
+    memory: str = Field(default=None, description="Instance of memory.")
+
+
 class Memories(BaseModel):
-    memory_list: List[str] = Field(
-        default=None,
-        description="Memory to be stored in the vectorstore."
+    memory_list: List[MemoryInstance] = Field(
+        default_factory=list,
+        description="Memories that have been saved from conversations with the user."
     )
 
 
@@ -45,15 +49,14 @@ def memory_summarizer(state: MemoryState, config: RunnableConfig) -> MemoryState
 
     messages = state["messages"]
     memories = state["memories"]
-    tool_name = "Memories"
+    tool_name = "MemoryInstance"
 
     existing_memories = [(tool_name, memory) for memory in memories]
 
     memory_extractor = create_extractor(
         node_model,
-        tools=[Memories],
-        tool_choice=tool_name,
-        enable_inserts=True
+        tools=[MemoryInstance],
+        tool_choice=tool_name
     )
     result = memory_extractor.invoke(
         {"messages": [SystemMessage(content=SUMMARY_MESSAGE)] + messages,
@@ -61,8 +64,7 @@ def memory_summarizer(state: MemoryState, config: RunnableConfig) -> MemoryState
 
     extracted_memories = []
     for r in result['responses']:
-        for mem in r.memory:
-            extracted_memories.append(save_recall_memory.invoke(mem, config))
+        extracted_memories.append(save_recall_memory.invoke(r.memory, config))
 
     # Delete all previous messages since action has already been summarized
     removed_messages = [RemoveMessage(id=m.id) for m in messages[:-settings.MODEL_HISTORY_LENGTH]]
