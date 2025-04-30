@@ -24,7 +24,7 @@ def initialize(state: MemoryState, config: RunnableConfig):
     }
     Defaults.base_url = f"{settings.API_URL}/"
 
-    return {*state}
+    return {**state}
 
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
