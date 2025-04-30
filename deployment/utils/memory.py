@@ -51,7 +51,7 @@ def memory_summarizer(state: MemoryState, config: RunnableConfig) -> MemoryState
     memories = state["memories"]
     tool_name = "MemoryInstance"
 
-    existing_memories = [(tool_name, memory) for memory in memories]
+    existing_memories = [(tool_name, m) for m in memories]
 
     memory_extractor = create_extractor(
         node_model,
@@ -71,7 +71,7 @@ def memory_summarizer(state: MemoryState, config: RunnableConfig) -> MemoryState
 
     return {
         "messages": removed_messages,
-        "memories": extracted_memories
+        "memories": memories + [MemoryInstance(memory=m) for m in extracted_memories]
     }
 
 
@@ -144,8 +144,7 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
         }
     )
 
-    # return [(document.page_content, document.metadata.get("timestamp")) for document in documents]
-    return [document.page_content for document in documents]
+    return [MemoryInstance(memory=document.page_content) for document in documents]
 
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
@@ -161,7 +160,7 @@ recall_vector_store = PGVector(
 # Strings
 SUMMARY_MESSAGE = (
     "# SYSTEM INSTRUCTIONS\n"
-    "Your only task is to create a short but comprehensive summary of the previous conversations "
+    "Your only task is to create a short but comprehensive summary of the current conversations "
     "for you to remember later. If there are no conversations, then return an empty array. Make "
     "sure to update the memory with the latest information. Do not overwrite memories of things that the user "
     "asked you to do.\n\n"
