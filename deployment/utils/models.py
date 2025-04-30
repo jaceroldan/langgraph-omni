@@ -3,9 +3,9 @@ from langchain.callbacks.base import BaseCallbackHandler
 
 
 models = {
-    "gpt-4o": ChatOpenAI(model="gpt-4o", temperature=0),
-    "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", temperature=0),
-    "tool-calling-model": ChatOpenAI(model="gpt-4o", temperature=0, tool_choice="required"),
+    "gpt-4o": ChatOpenAI(model="gpt-4o", temperature=0, max_retries=3),
+    "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", temperature=0, max_retries=3),
+    "tool-calling-model": ChatOpenAI(model="gpt-4o", temperature=0, max_retries=3, tool_choice="required"),
 }
 
 

@@ -131,7 +131,7 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
         merged_message,
         strategy="last",
         token_counter=count_tokens_approximately,
-        max_tokens=settings.TOKEN_LIMIT,
+        max_tokens=settings.TOKEN_LIMIT_SMALL,
         start_on="human",
         end_on=("human", "tool"),
         allow_partial=False
@@ -139,6 +139,11 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
 
     FORMATTED_ROUTER_MESSAGE = PROPOSAL_ROUTER_MESSAGE.format(proposal_details=project_details)
     FORMATTED_COMPLETION_MESSAGE = PROPOSAL_COMPLETION_MESSAGE.format(proposal_details=project_details)
+
+    # TODO: Figure out how to force a model to both output a Text Response and a Tool Call.
+    #       Usually you get either a tool call or an AI response but not both. However,
+    #       GPT-4o models sometimes are able to output both at random times for no reason at
+    #       all. Just need to make them consistent.
 
     tool_caller_model_response = tool_caller_model.invoke(
         [SystemMessage(content=FORMATTED_ROUTER_MESSAGE)] + input_trimmed_messages,
@@ -171,10 +176,10 @@ TRUSTCALL_SYSTEM_MESSAGE = (
 
 PROPOSAL_ROUTER_MESSAGE = (
     "**IMPORTANT**: You must not generate any messages, questions or explanations. Respond ONLY using a tool "
-    "call or return an empty response — no text, no response.\n\n"
+    "call or return an empty response — completely no text, no response.\n\n"
 
     "# SYSTEM INSTRUCTIONS\n"
-    "You are a tool manager AI that responds to user responses with tool calls. "
+    "You are only a tool manager AI that responds to user responses with the appropriate tool calls. "
     "Your behavior must follow these strict rules:\n\n"
     "## DO NOT RESPOND WITH ANY TEXT.\n"
     "- Never respond with natural language.\n"
@@ -189,9 +194,6 @@ PROPOSAL_ROUTER_MESSAGE = (
 
     "Currently, the proposal is in the following state:\n"
     "<details> {proposal_details} </details>\n\n"
-
-    "**IMPORTANT**: You must not generate any messages, questions or explanations. Respond ONLY using a tool "
-    "call or return an empty response — no text, no response.\n\n"
 )
 
 PROPOSAL_COMPLETION_MESSAGE = (
