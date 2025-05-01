@@ -24,12 +24,14 @@ def fetch_shift_logs(args: dict):
 
 
 def create_new_card(args: dict):
+    # TODO: Try to find a way to determine the user's board/column
+
     form_data = {
-        "creator": args.get("user_id"),
-        "assignees": args.get("user_id"),
+        "creator": args.get("creator"),
+        "assignees": args.get("assignees"),
         "title": args.get("title"),
-        "column": args.get("column", "213"),
-        "is_public": args.get("is_public", True),
+        "column": args.get("column", "213"),  # To Do column inside Development Board inside BPOSeats workforce
+        "is_public": args.get("is_public", "True"),
     }
 
     response = Card.objects.create(form_data)
