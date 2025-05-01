@@ -19,10 +19,9 @@ def initialize(state: MemoryState, config: RunnableConfig):
     # Set Default properties
     Defaults.headers = {
         'Authorization': auth_token,
-        'Content-Type': 'application/json',
         'X-App-Version': '1.0.0'
     }
-    Defaults.base_url = f"{settings.API_URL}/"
+    Defaults.base_url = f"{settings.API_URL}"
 
     return {**state}
 
