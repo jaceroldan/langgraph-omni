@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 
 # Import utils
 from utils.models import models
-from deployment.api import fetch_weekly_task_estimates
+from api import fetch_weekly_task_estimates
 from utils.configuration import Configuration
 
 
@@ -108,9 +108,9 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     workforce_id = configuration.workforce_id
     model_name = configuration.model_name
     node_model = models[model_name]
-    is_web = configuration.is_web
+    source = configuration.source
     response = fetch_weekly_task_estimates(
-        auth_token, workforce_id, user_profile_pk, x_timezone, is_web)
+        auth_token, workforce_id, user_profile_pk, x_timezone, source)
 
     if response:
         response = response['data']

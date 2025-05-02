@@ -17,7 +17,7 @@ class Configuration:
 
     user_profile_pk: str = ""
     employment_id: str = ""
-    is_web: bool = False
+    source: Optional[str] = None
     workforce_id: Optional[str] = None
     job_position: Optional[str] = None
     x_timezone: Optional[str] = None

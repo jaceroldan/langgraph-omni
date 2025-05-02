@@ -13,7 +13,7 @@ from langgraph.prebuilt import ToolNode
 from utils.configuration import Configuration
 from utils.models import models
 from utils.constants import DB_URI
-from deployment.tools.scalema_omni import (
+from tools.scalema_omni import (
     MemoryState,
     save_recall_memory,
     search_recall_memories,
