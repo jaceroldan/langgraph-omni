@@ -24,7 +24,14 @@ def input_helper(state: InputState) -> InputState:
     """
         Helper node used for receiving the User's response for HITL.
     """
-    user_response = interrupt("")
+
+    choices = state["extra_data"].get("choices")
+    value = {}
+
+    if choices:
+        value["choices"] = choices
+
+    user_response = interrupt(value=value)
     return {**state, "messages": [HumanMessage(content=user_response)]}
 
 
@@ -41,7 +48,7 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
     maximum_history_lookup = 4
     response = node_model.invoke(
         [SystemMessage(content=handler_message)] + state["messages"][-maximum_history_lookup:])
-    return {"messages": [response]}
+    return {"messages": [response], "extra_data": {}}
 
 
 # Initialize Graph
