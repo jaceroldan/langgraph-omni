@@ -15,8 +15,8 @@ from trustcall import create_extractor
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models, SilentHandler
-from utils.nodes import tool_handler, input_helper
-from utils.schemas import Project, ProjectState, Choices
+from utils.nodes import tool_handler, input_helper, choice_extractor_helper
+from utils.schemas import Project, ProjectState
 from utils.tools import calculator
 
 import settings
@@ -157,30 +157,6 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     return {"messages": [agent_response, tool_caller_model_response]}
 
 
-def post_processor(state: ProjectState, config: RunnableConfig) -> ProjectState:
-    """
-        Currently handles extraction of choices from the previous node.
-    """
-
-    configurable = Configuration.from_runnable_config(config)
-    model_name = configurable.model_name
-
-    choice_extractor = create_extractor(
-        models[model_name],
-        tools=[Choices],
-        tool_choice="Choices",
-        enable_inserts=True
-    )
-    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE)] + state["messages"][-2:])
-    dump = result["responses"][0].model_dump(mode="python").get("choice_selection", [])
-
-    extra_data = state.get("extra_data", {})
-    if dump:
-        extra_data["choices"] = dump
-
-    return {**state, "extra_data": extra_data}
-
-
 TRUSTCALL_SYSTEM_MESSAGE = (
     "# TRUSTCALL SYSTEM INSTRUCTIONS\n"
     "You are a tool-routing assistant. Your only role is to analyze user input and call the appropriate tools.\n\n"
@@ -202,23 +178,6 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "- Validate that each field has a clear mapping in the user's input.\n"
     "- Ask for clarification if required, or proceed with blanks if the instruction is to do so.\n"
     "\nSystem Time: {time}"
-)
-
-CHOICE_EXTRACTOR_MESSAGE = (
-    "# INSTRUCTIONS:\n"
-    "Given an input text, perform the following steps:\n"
-    "1. If the text is asking for a name, title, number, or value of something, return an empty list.\n"
-    "2. Carefully check if the text contains a question that is answerable strictly and only by "
-    "'Yes' or 'No'.\n"
-    "\t- If so, output exactly ['Yes', 'No'] as the answer choices.\n"
-    "3. Otherwise, scan the text for any explicitly mentioned answer choices. Extract and output "
-    "these choices exactly as they appear; do not add or modify them.\n"
-    "\t- You may add an option to decline the question if it is appropriate."
-    "4. If no explicit answer choices are found, only output an empty list.\n"
-    "5. If the text is offering assistance on a future endeavor, only output an empty list.\n"
-    "6. When creating choices, always make sure to take note of the context and incorporate it into "
-    "the choice itself.\n"
-    "Always ensure you use the provided tool only to capture and retain any necessary information."
 )
 
 PROPOSAL_ROUTER_MESSAGE = (
@@ -311,7 +270,7 @@ subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
 subgraph_builder.add_node(project_helper,  retry=RetryPolicy(max_attempts=3))
 subgraph_builder.add_node(project_agent)
 subgraph_builder.add_node(input_helper)
-subgraph_builder.add_node(post_processor)
+subgraph_builder.add_node(choice_extractor_helper)
 subgraph_builder.add_node("initial_tool_handler", tool_handler)
 subgraph_builder.add_node("input_tool_handler", tool_handler)
 subgraph_builder.add_node("end_tool_handler", tool_handler)
@@ -321,8 +280,8 @@ subgraph_builder.add_edge(START, "initial_tool_handler")
 subgraph_builder.add_edge("initial_tool_handler", "project_agent")
 subgraph_builder.add_conditional_edges("project_agent", continue_to_tool)
 subgraph_builder.add_edge("tool_executor", "project_agent")
-subgraph_builder.add_edge("input_tool_handler", "post_processor")
-subgraph_builder.add_edge("post_processor", "input_helper")
+subgraph_builder.add_edge("input_tool_handler", "choice_extractor_helper")
+subgraph_builder.add_edge("choice_extractor_helper", "input_helper")
 subgraph_builder.add_edge("input_helper", "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
 subgraph_builder.add_edge("end_tool_handler", END)

@@ -104,6 +104,10 @@ class Project(BaseModel):
 
 
 # State Schemas
-class ProjectState(MessagesState):
+class InputState(MessagesState):
+    extra_data: dict
+
+
+class ProjectState(InputState):
     """Used to transfer project information in-between subgraphs."""
     project_details: Project = Field(None, description="Project proposal details.")
