@@ -39,16 +39,17 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
     """
         Handles the previous user input and provides instructions for the next tool call.
     """
-    model_name = Configuration.from_runnable_config(config).model_name
+    configuration = Configuration.from_runnable_config(config)
+    model_name = configuration.model_name
+    model_history_length = configuration.model_history_length
     tools = state["tools"]
     handler_message = state["handler_message"]
 
     node_model = models[model_name].bind_tools(tools, parallel_tool_calls=False)
 
-    maximum_history_lookup = 4
     response = node_model.invoke(
-        [SystemMessage(content=handler_message)] + state["messages"][-maximum_history_lookup:])
-    return {"messages": [response], "extra_data": {}}
+        [SystemMessage(content=handler_message)] + state["messages"][-model_history_length:])
+    return {"messages": [response]}
 
 
 # Initialize Graph

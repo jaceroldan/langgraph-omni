@@ -5,30 +5,32 @@ from typing import Literal, TypedDict
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
-
-from utils.api_caller import fetch_weekly_task_estimates
-from utils.tools import estimate_tasks_duration
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.store.postgres import PostgresStore
+from langgraph.prebuilt import ToolNode
 
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
+from utils.memory import MemoryState, save_recall_memory, search_recall_memories
+from utils.constants import DB_URI
+from utils.estimates import fetch_weekly_task_estimates_summary
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
 
 
 # Tools
-class ToolCall(TypedDict):
+class CreateProposal(TypedDict):
     """
-        Decision on which tool to use
+        Creates a proposal. Routes to `scalema_web3_subgraph` for proposal creation.
     """
-    tool_type: Literal["proposal", "weekly_tasks_summary"]
 
 
-def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
-                                                 "fetch_weekly_task_estimates_summary",
-                                                 END]:  # type: ignore
+def continue_to_tool(state: MessagesState) -> Literal[
+                                                "scalema_web3_subgraph",
+                                                "tool_executor",
+                                                END]:  # type: ignore
     """
         Decide on which tool to use
     """
@@ -38,110 +40,78 @@ def choose_tool(state: MessagesState) -> Literal["scalema_web3_subgraph",
     if not tool_calls:
         return END
 
-    match (tool_calls[0]["args"]["tool_type"]):
-        case "proposal":
-            return "scalema_web3_subgraph"
-        case "weekly_tasks_summary":
-            return "fetch_weekly_task_estimates_summary"
+    tool_name = tool_calls[0]["name"]
+    route_to_nodes = []
+    match tool_name:
+        case "CreateProposal":
+            route_to_nodes.append("scalema_web3_subgraph")
+        case _ if tool_name in [tool.get_name() for tool in agent_tools]:
+            route_to_nodes.append("tool_executor")
         case _:
             return END
 
+    return route_to_nodes
 # Schemas
 
 
 # Nodes
-def fetch_weekly_task_estimates_summary(
-        state: MessagesState, config: RunnableConfig):
-    """
-        Provides a summary of the estimated hours required for
-        the user's tasks for the week. Use this tool whenever the
-        user asks about their weekly task estimates. Call
-        "fetch_weekly_task_estimates_summary" to retrieve
-        this information.
-    """
-
-    configuration = Configuration.from_runnable_config(config)
-    auth_token = configuration.auth_token
-    job_position = configuration.job_position
-    user_profile_pk = configuration.user_profile_pk
-    x_timezone = configuration.x_timezone
-    workforce_id = configuration.workforce_id
-
-    model_name = configuration.model_name
-    node_model = models[model_name]
-
-    response = fetch_weekly_task_estimates(
-        auth_token, workforce_id, user_profile_pk, x_timezone)
-
-    if response:
-        response = response['data']
-        ai_estimation_hours = estimate_tasks_duration(
-            node_model,
-            response['target_task_names'],
-            response['similar_task_names'],
-            job_position,
-            response['years_of_experience'],
-        )
-    else:
-        ai_estimation_hours = 0
-
-    response = """
-        Below is the estimated number of hours required to complete the tasks
-        the system has generated for the user:
-        {ai_estimation_hours}
-
-        Discuss with them how many hours are needed for the current week's
-        tasks. If there are no tasks remaining, congratulate them on
-        completing their work for the week and encourage them to relax.
-    """.format(ai_estimation_hours=ai_estimation_hours)
-
-    tool_calls = state["messages"][-1].tool_calls
-    return {"messages": [{
-        "role": "tool",
-        "content": response,
-        "tool_call_id": tool_calls[0]['id']}]}
-
-
-def agent(state: MessagesState, config: RunnableConfig):
+def agent(state: MemoryState, config: RunnableConfig):
     """
         Helps personalizes chatbot messages
     """
 
-    model_name = Configuration.from_runnable_config(config).model_name
-    node_model = models[model_name].bind_tools([ToolCall], parallel_tool_calls=False)
-    response = node_model.invoke([SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"])
+    configuration = Configuration.from_runnable_config(config)
+    model_name = configuration.model_name
+    model_history_length = configuration.model_history_length
+
+    node_model = models[model_name].bind_tools(agent_tools + node_tools)
+
+    messages = [SystemMessage(content=MODEL_SYSTEM_MESSAGE)] + state["messages"][-model_history_length:]
+    response = node_model.invoke(messages)
+
     return {"messages": [response]}
 
 
 # System Messages for the Model
 MODEL_SYSTEM_MESSAGE = (
-    "You are Scalema, a helpful chatbot that assists clients with their business queries. "
-    "If this is your first time interacting with a client, introduce yourself and inform them of your role. "
-    "You have the ability to choose the appropriate tools to handle client requests."
-    "\n\nGuidelines for tool usage:"
-    "\n\t1. If a user requests assistance with a proposal or provides details for one, "
-    "always call ToolCall with the 'proposal' argument."
-    "\n\t2. If the user asks for an estimate of the total hours required for their tasks this week, call ToolCall "
-    "with the 'weekly_tasks_summary' argument. This applies whenever the user inquires about their workload, "
-    "the time needed to complete their tasks, or any similar phrasing related to task estimates for the week."
-    "\n\t3. Do not provide examples unless explicitly asked."
-    "\n\nWhen using tools, do not inform the user that a tool has been called. Instead, "
-    "respond naturally as if the action was performed seamlessly."
+    "# INSTRUCTIONS:\n"
+    "You are Scalema, a helpful chatbot that assists clients with their business queries. If this is your first time "
+    "interacting with a client, introduce yourself and inform them of your role. You have the ability to choose the "
+    "appropriate tools to handle client requests.\n"
+    "## Guidelines for tool usage:\n"
+    "\t1. If a user requests assistance with a proposal or provides details for a proposal, always call the "
+    "`CreateProposal` tool.\n"
+    "\t2. If the user asks for an estimate of the total hours required for their tasks this week, call the "
+    "`fetch_weekly_task_estimates_summary` tool. This applies whenever the user inquires "
+    "about their workload, the time needed to complete their tasks, or any similar phrasing related to task estimates "
+    "for the week.\n"
+    "\t3. Determine if the user is referring to some memory, use `search_recall_memories` to retrieve those memories`"
+    "\t4. Always use `save_recall_memory` to save any relevant information that the user shares with you. This will "
+    "help you remember important details for future conversations. This includes the following:\n"
+    "\t\t- User's name\n"
+    "\t\t- User's job position\n"
+    "\t5. When using tools, do not inform the user that a tool has been called. Instead, respond naturally as if the "
+    "action was performed seamlessly.\n"
 )
 
 
 # Initialize Graph
-builder = StateGraph(MessagesState, config_schema=Configuration)
+agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
+node_tools = [CreateProposal]
+
+builder = StateGraph(MemoryState, config_schema=Configuration)
 
 builder.add_node(agent)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
-builder.add_node("fetch_weekly_task_estimates_summary", fetch_weekly_task_estimates_summary)
-
+builder.add_node("tool_executor", ToolNode(agent_tools))
 
 builder.add_edge(START, "agent")
-builder.add_conditional_edges("agent", choose_tool)
+builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("scalema_web3_subgraph", "agent")
-builder.add_edge("fetch_weekly_task_estimates_summary", "agent")
+builder.add_edge("tool_executor", "agent")
 
-checkpointer = MemorySaver()
-graph = builder.compile(checkpointer=checkpointer)
+with PostgresStore.from_conn_string(DB_URI) as store, PostgresSaver.from_conn_string(DB_URI) as checkpointer:
+    store.setup()
+    checkpointer.setup()
+
+    graph = builder.compile(checkpointer=checkpointer, store=store)

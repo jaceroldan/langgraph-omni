@@ -12,6 +12,9 @@ class Configuration:
     thread_id: str
     model_name: str = "gpt-4o"
 
+    # Do not use Odd numbers or 400 error occurs "Invalid parameter"
+    model_history_length: int = 6
+
     user_profile_pk: str = ""
     employment_id: str = ""
     workforce_id: Optional[str] = None
