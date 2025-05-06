@@ -65,7 +65,7 @@ def choice_extractor_helper(state: InputState, config: RunnableConfig) -> InputS
         tool_choice="Choices",
         enable_inserts=True
     )
-    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE)] + state["messages"][-2:])
+    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE)] + state["messages"][-3:])
     dump = result["responses"][0].model_dump(mode="python").get("choice_selection", [])
 
     extra_data = state.get("extra_data", {})
@@ -76,18 +76,19 @@ def choice_extractor_helper(state: InputState, config: RunnableConfig) -> InputS
 
 
 CHOICE_EXTRACTOR_MESSAGE = (
-    "# INSTRUCTIONS:\n"
-    "Given an input text, perform the following steps:\n"
-    "1. If the text is asking for a name, title, number, or value of something, return an empty list.\n"
-    "2. Carefully check if the text contains a question that is answerable strictly and only by "
-    "'Yes' or 'No'.\n"
-    "\t- If so, output exactly ['Yes', 'No'] as the answer choices.\n"
-    "3. Otherwise, scan the text for any explicitly mentioned answer choices. Extract and output "
-    "these choices exactly as they appear; do not add or modify them.\n"
-    "\t- You may add an option to decline the question if it is appropriate."
-    "4. If no explicit answer choices are found, only output an empty list.\n"
-    "5. If the text is offering assistance on a future endeavor, only output an empty list.\n"
-    "6. When creating choices, always make sure to take note of the context and incorporate it into "
-    "the choice itself.\n"
-    "Always ensure you use the provided tool only to capture and retain any necessary information."
+    "You are a choice extraction tool. Given an input text, output a list of answer choices "
+    "following these rules:\n\n"
+    "1. If the text asks for a name, title, number, or specific value — return an empty list.\n"
+    "2. If the question is strictly answerable with 'Yes' or 'No', return ['Yes', 'No'].\n"
+    "3. If explicit answer options are mentioned in the text, extract them exactly as written.\n"
+    "  - For example: If the message asked the user to pick between Oranges, Apples, and Watermelons,"
+    "you may return ['Oranges', 'Apples', 'Watermelons'].\n"
+    "  - You may include an option to decline if it's contextually appropriate.\n"
+    "4. Prefer explicit answer choices over 'Yes' and 'No'.\n"
+    "5. If the question is asking the user to provide data (ex. 'Could you provide...'), you do not need to"
+    " output 'Yes' or 'No' for confirmation. Do not return anything in this context.\n"
+    "5. If no valid choices are found, return an empty list.\n"
+    "6. If the text offers assistance or advice for the future, return an empty list.\n"
+    "7. Always ensure extracted choices reflect the context of the text.\n\n"
+    "Output only a list of choices. Do not include explanations or any other text."
 )
