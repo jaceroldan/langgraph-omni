@@ -13,7 +13,7 @@ from trustcall import create_extractor
 from utils.configuration import Configuration
 from utils.models import models
 from utils.nodes import tool_handler
-from utils.schemas import Project, ProjectState
+from utils.schemas import Project, ProjectState, Choices
 from tools.scalema_web3 import calculator
 
 # Import subgraphs
@@ -46,7 +46,7 @@ def handler_decision(state: MessagesState) -> Literal["project_helper", "tool_ha
             return "tool_handler"
 
 
-def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execute_tool"]:  # type: ignore
+def agent_tool_decision(state: MessagesState) -> Literal["post_processor", "execute_tool"]:  # type: ignore
     """
         Contains decisions for if the agent needs to use one of its tools or continue with asking
         for user inputs.
@@ -56,7 +56,7 @@ def agent_tool_decision(state: MessagesState) -> Literal["input_handler", "execu
     for item in tool_calls:
         if item["name"] == "calculator":
             return "execute_tool"
-    return "input_handler"
+    return "post_processor"
 
 
 # Nodes
@@ -111,20 +111,64 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     node_model = models[model_name].bind_tools(agent_tools)
     project_details = state["project_details"]
 
-    FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(proposal_details=project_details)
+    FORMATTED_MESSAGE = PROPOSAL_AGENT_MESSAGE.format(
+        time=datetime.now().isoformat(),
+        proposal_details=project_details)
     FORMATTED_HANDLER_MESSAGE = INTERRUPT_HANDLER_MESSAGE.format(proposal_details=project_details)
 
     response = node_model.invoke([SystemMessage(content=FORMATTED_MESSAGE)] + state["messages"])
+
     return {"messages": [response], "tools": [ToolCall], "handler_message": FORMATTED_HANDLER_MESSAGE}
+
+
+def post_processing_node(state: ProjectState, config: RunnableConfig) -> ProjectState:
+    """
+        Currently handles extraction of choices from the previous node.
+    """
+
+    configurable = Configuration.from_runnable_config(config)
+    model_name = configurable.model_name
+
+    choice_extractor = create_extractor(
+        models[model_name],
+        tools=[Choices],
+        tool_choice="Choices",
+        enable_inserts=True
+    )
+    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE), state["messages"][-1]])
+    dump = result["responses"][0].model_dump(mode="python").get("choice_selection", [])
+
+    extra_data = state.get("extra_data", {})
+    if dump:
+        extra_data["choices"] = dump
+
+    return {**state, "extra_data": extra_data}
 
 
 TRUSTCALL_SYSTEM_MESSAGE = (
     "Your only instruction is to reflect on the interaction and call the appropriate tool. "
     "Always use the provided tool to retain any necessary information. "
     "Use parallel tool calls to handle updates and insertions simultaneously. "
-    "Never provide data about the proposal that are not from the user's own messages."
+    "Never provide data about the proposal that is not from the user's own messages."
     "\nSystem Time: {time}"
     "The following is the current state of the proposal: \n{proposal_details}"
+)
+
+CHOICE_EXTRACTOR_MESSAGE = (
+    "# INSTRUCTIONS:\n"
+    "Given an input text, perform the following steps:\n"
+    "1. If the text is asking for a name, title, number, or value of something, return an empty list.\n"
+    "2. Carefully check if the text contains a question that is answerable strictly and only by "
+    "'Yes' or 'No'.\n"
+    "\t- If so, output exactly ['Yes', 'No'] as the answer choices.\n"
+    "3. Otherwise, scan the text for any explicitly mentioned answer choices. Extract and output "
+    "these choices exactly as they appear; do not add or modify them.\n"
+    "\t- You may add an option to decline the question if it is appropriate."
+    "4. If no explicit answer choices are found, only output an empty list.\n"
+    "5. If the text is offering assistance on a future endeavor, only output an empty list.\n"
+    "6. When creating choices, always make sure to take note of the context and incorporate it into "
+    "the choice itself.\n"
+    "Always ensure you use the provided tool only to capture and retain any necessary information."
 )
 
 PROPOSAL_AGENT_MESSAGE = (
@@ -152,11 +196,11 @@ PROPOSAL_AGENT_MESSAGE = (
     "\n\t\t6. available_shares"
     "\n\t-After 5-6 has been filled, calculate the per-share price by calling `calculator`. After "
     "calculating, inform the user about this and reassure them that they can readjust if needed."
-    " Do not ask to continue unless they are alright about the share price then you can ask to continue."
+    "Do not ask to continue unless they are alright about the share price then you can ask to continue."
     "\n\t\t7. minimum_viable_fund"
     "\n\t\t8. funding_date_completion"
     "\n\t-For 9-11, always consider the context of the proposal and suggest possible important items for the "
-    "user to provide."
+    "user to provide. Remember, don't accept dates that are before the System Time."
     "\n\t\t9. key_milestone_dates"
     "\n\t\t10. financial_documents"
     "\n\t\t11. legal_documents"
@@ -166,7 +210,9 @@ PROPOSAL_AGENT_MESSAGE = (
     "for you to refine the proposal."
     "\nLastly, before finishing, always ask the user if they would like to save it as a draft and refine "
     "it later or to submit it for review by Scalema Admins."
-    "\nAlways be friendly and include a short comment on the user's response but be professional. "
+    "\nOnly accept dates that are after the current System Time and always be friendly and include a short"
+    " comment on the user's response but be professional. "
+    "\nSystem Time: {time}"
 )
 
 INTERRUPT_HANDLER_MESSAGE = (
@@ -196,11 +242,13 @@ subgraph_builder.add_node("project_agent", project_agent)
 subgraph_builder.add_node("input_handler", input_handler_subgraph)
 subgraph_builder.add_node("tool_handler", tool_handler)
 subgraph_builder.add_node("execute_tool", ToolNode(agent_tools))
+subgraph_builder.add_node("post_processor", post_processing_node)
 
 subgraph_builder.add_edge(START, "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
 subgraph_builder.add_conditional_edges("project_agent", agent_tool_decision)
 subgraph_builder.add_edge("execute_tool", "project_agent")
+subgraph_builder.add_edge("post_processor", "input_handler")
 subgraph_builder.add_conditional_edges("input_handler", handler_decision)
 subgraph_builder.add_edge("tool_handler", END)
 
