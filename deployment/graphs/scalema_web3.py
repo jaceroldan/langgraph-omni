@@ -171,7 +171,7 @@ def post_processor(state: ProjectState, config: RunnableConfig) -> ProjectState:
         tool_choice="Choices",
         enable_inserts=True
     )
-    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE), state["messages"][-2]])
+    result = choice_extractor.invoke([SystemMessage(content=CHOICE_EXTRACTOR_MESSAGE)] + state["messages"][-2:])
     dump = result["responses"][0].model_dump(mode="python").get("choice_selection", [])
 
     extra_data = state.get("extra_data", {})
