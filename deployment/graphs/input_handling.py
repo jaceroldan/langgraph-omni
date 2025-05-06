@@ -29,7 +29,14 @@ def input_helper(state: InputState) -> InputState:
     """
         Helper node used for receiving the User's response for HITL.
     """
-    user_response = interrupt("")
+
+    choices = state["extra_data"].get("choices")
+    value = {}
+
+    if choices:
+        value["choices"] = choices
+
+    user_response = interrupt(value=value)
     return {**state, "messages": [HumanMessage(content=user_response)]}
 
 
