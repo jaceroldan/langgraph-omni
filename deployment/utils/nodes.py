@@ -26,7 +26,7 @@ def tool_handler(state: MessagesState):
             }
             tool_call_messages.append(tool_call_message)
 
-    return {**state,  "messages": tool_call_messages}
+    return {"messages": tool_call_messages}
 
 
 def input_helper(state: MessagesState) -> MessagesState:
@@ -34,4 +34,4 @@ def input_helper(state: MessagesState) -> MessagesState:
         Helper node used for receiving the User's response for HITL.
     """
     user_response = interrupt("")
-    return {**state, "messages": [HumanMessage(content=user_response)]}
+    return {"messages": [HumanMessage(content=user_response)]}
