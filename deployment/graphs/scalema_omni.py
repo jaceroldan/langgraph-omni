@@ -25,6 +25,7 @@ from utils.estimates import fetch_weekly_task_estimates_summary
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
+from graphs.card_creator import bposeats_card_creator_subgraph
 from graphs.initialization import init_graph
 
 
@@ -35,8 +36,15 @@ def web3_create_proposal():
     return
 
 
+@tool
+def bposeats_create_card():
+    """Creates a card. Routes to `bposeats_card_creator_subgraph` for card creation."""
+    return
+
+
 def continue_to_tool(state: MessagesState) -> Literal[
                                                 "scalema_web3_subgraph",
+                                                "bposeats_card_creator_subgraph",
                                                 "tool_executor",
                                                 "memory_executor",
                                                 "__end__"]:
@@ -55,6 +63,8 @@ def continue_to_tool(state: MessagesState) -> Literal[
     match tool_name:
         case "web3_create_proposal":
             return "scalema_web3_subgraph"
+        case "bposeats_create_card":
+            return "bposeats_card_creator_subgraph"
         case _ if tool_name in [tool.get_name() for tool in memory_tools]:
             return "memory_executor"
         case _ if tool_name in [tool.get_name() for tool in agent_tools]:
@@ -115,21 +125,24 @@ MODEL_SYSTEM_MESSAGE = (
     "1. **Creating Proposal Assistance**:\n"
     "   - If the user asks for help with or to create a proposal or provides proposal details, use the "
     "`web3_create_proposal` tool.\n\n"
-    "2. **Fetching Weekly Task Estimates**:\n"
+    "2. **Creating Cards Assistance**:\n"
+    "   - If the user instead asks for assistance with or wants to create a card, use the "
+    "`bposeats_create_card` tool.\n\n"
+    "3. **Fetching Weekly Task Estimates**:\n"
     "   - If the user asks for their weekly task estimates summary or anything of the sort, use the "
     "`fetch_weekly_task_estimates_summary` tool.\n"
     "   - Call the tool even if past memories indicate that the user has no remaining tasks for the week"
     " as there might be updates to the user's tasks.\n\n"
-    "3. **Memory Recall**:\n"
+    "4. **Memory Recall**:\n"
     "   - If the user refers to a past conversation or memory:\n"
     "     - Use `search_recall_memories` to retrieve it.\n"
     "     - If nothing is found, respond honestly that you don't know.\n\n"
     "     - Don't mention data records, respond as if you were recalling the memory personally.\n\n"
-    "4. **Saving User Information**:\n"
+    "5. **Saving User Information**:\n"
     "   - Use `save_recall_memory` to store any important user information for future interactions, including:\n"
     "     - User's name\n"
     "     - User's job position\n\n"
-    "5. **Tool Interaction Etiquette**:\n"
+    "6. **Tool Interaction Etiquette**:\n"
     "   - You are only allowed to use one tool. Do not call more than one tool in one response.\n"
     "   - Do not mention tool usage explicitly to the user.\n"
     "   - Always try to confirm information being asked of you using tools over relying on memories.\n"
@@ -141,7 +154,7 @@ MODEL_SYSTEM_MESSAGE = (
 # Initialize Graph
 memory_tools = [save_recall_memory, search_recall_memories]
 agent_tools = [fetch_weekly_task_estimates_summary]
-node_tools = [web3_create_proposal]
+node_tools = [web3_create_proposal, bposeats_create_card]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
 
@@ -149,6 +162,7 @@ builder.add_node(agent)
 builder.add_node(memory_summarizer, retry=RetryPolicy(max_attempts=3))
 builder.add_node("initialization", init_graph)
 builder.add_node("scalema_web3_subgraph", scalema_web3_subgraph)
+builder.add_node("bposeats_card_creator_subgraph", bposeats_card_creator_subgraph)
 builder.add_node("tool_executor", ToolNode(agent_tools))
 builder.add_node("memory_executor", ToolNode(memory_tools))
 
@@ -157,6 +171,7 @@ builder.add_edge("initialization", "agent")
 builder.add_conditional_edges("agent", continue_to_tool)
 builder.add_edge("memory_summarizer", "agent")
 builder.add_edge("scalema_web3_subgraph", "memory_summarizer")
+builder.add_edge("bposeats_card_creator_subgraph", "memory_summarizer")
 builder.add_edge("tool_executor", "memory_summarizer")
 builder.add_edge("memory_executor", "agent")  # We don't want to process memories here
 
