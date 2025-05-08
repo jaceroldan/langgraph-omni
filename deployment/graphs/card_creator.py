@@ -24,8 +24,17 @@ def finish_process():
     """Fake tool to finish the card creation process."""
     return
 
+@tool
+def cancel_process():
+    """Fake tool to cancel the card creation process."""
+    return
 
-def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler", "input_helper"]:
+
+def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler",
+                                                      "input_helper",
+                                                      "cancel_tool_handler"]:
+    """Determine the next node to go to."""
+
     last_message = state["messages"][-1]
     if not (hasattr(last_message, "tool_calls") and len(last_message.tool_calls)):
         # Assume that: if there is no tool called, the agent is asking for
@@ -35,6 +44,8 @@ def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler"
     tool_name = last_message.tool_calls[0]["name"]
     match tool_name:
         # Only leave the subgraph once the agent manually finishes the process
+        case "cancel_process":
+            return "cancel_tool_handler"
         case "finish_process":
             return "create_card_tool_handler"
 
@@ -42,6 +53,7 @@ def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler"
 
 
 def card_extractor_helper(state: CardState, config: RunnableConfig) -> CardState:
+    """Handles in extracting Card information from user responses"""
 
     test_card = Card()
     test_card.creator = "15434"
@@ -53,6 +65,11 @@ def card_extractor_helper(state: CardState, config: RunnableConfig) -> CardState
 
 
 def card_agent(state: CardState, config: RunnableConfig) -> CardState:
+    """
+        Facilitates the Board Card creation process by responding to the user and
+        calling the correct tools.
+    """
+
     configuration = Configuration.from_runnable_config(config)
     model_name = configuration.model_name
     model = models[model_name]
@@ -68,6 +85,8 @@ def card_agent(state: CardState, config: RunnableConfig) -> CardState:
 
 
 def card_creation_caller_node(state: CardState, config: RunnableConfig) -> CardState:
+    """Attempts to create a Card by calling an API endpoint"""
+
     configuration = Configuration.from_runnable_config(config)
     user_profile = configuration.user_profile_pk
 
@@ -88,8 +107,16 @@ def card_creation_caller_node(state: CardState, config: RunnableConfig) -> CardS
     except Exception as e:
         api_response = f"An Exception has occurred! {str(e)}"
 
-    return {"messages": SystemMessage(content=f"The server has responded with: {api_response}")}
+    FORMATTED_API_RESPONSE = API_RESPONSE_MESSAGE.format(api_response=api_response)
 
+    return {"messages": SystemMessage(content=FORMATTED_API_RESPONSE)}
+
+
+API_RESPONSE_MESSAGE = (
+    "The user attempted to create a card and the server has responded with: {api_response}.\n"
+    "If 'pk' was returned by the server, consider the creation successful and inform the user "
+    "of this, else, inform the user that card creation has failed and to try again later."
+)
 
 AGENT_SYSTEM_MESSAGE = (
     "# SYSTEM INSTRUCTIONS:\n"
@@ -106,12 +133,14 @@ AGENT_SYSTEM_MESSAGE = (
     "  5. When the user says that it's correct or confirms, call `finish_process` to "
     "end the creation process.\n\n"
     "Below is also the current state of Card, use it as a reference for the rules above:\n"
-    "<details> {card_details} <details>"
+    "<details> {card_details} <details>\n\n"
+    "Lastly, if the user does not want to continue, call `cancel_process` to end the "
+    "creation process."
 )
 
 
 agent_tools = []
-node_tools = [finish_process]
+node_tools = [finish_process, cancel_process]
 
 
 subgraph_builder = StateGraph(CardState, config_schema=Configuration)
@@ -122,6 +151,7 @@ subgraph_builder.add_node(card_extractor_helper)
 subgraph_builder.add_node(card_creation_caller_node)
 subgraph_builder.add_node("create_card_tool_handler", tool_handler)
 subgraph_builder.add_node("initial_tool_handler", tool_handler)
+subgraph_builder.add_node("cancel_tool_handler", tool_handler)
 
 subgraph_builder.add_edge(START, "initial_tool_handler")
 subgraph_builder.add_edge("initial_tool_handler", "card_agent")
@@ -129,6 +159,7 @@ subgraph_builder.add_conditional_edges("card_agent", continue_to_tool)
 subgraph_builder.add_edge("input_helper", "card_extractor_helper")
 subgraph_builder.add_edge("card_extractor_helper", "card_agent")
 subgraph_builder.add_edge("create_card_tool_handler", "card_creation_caller_node")
+subgraph_builder.add_edge("cancel_tool_handler", END)
 subgraph_builder.add_edge("card_creation_caller_node", END)
 
 
