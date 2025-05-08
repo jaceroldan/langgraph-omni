@@ -100,9 +100,10 @@ def card_creation_caller_node(state: CardState, config: RunnableConfig) -> CardS
 
 AGENT_SYSTEM_MESSAGE = (
     "# SYSTEM INSTRUCTIONS:\n"
-    "You are an Assistant AI that is tasked on creating Board Cards for the user.\n"
-    "You must follow the given instructions below step-by-step to successfully create "
-    "a Board Card for the user:\n"
+    "You are an Assistant AI that is tasked on creating Board Cards for the user. "
+    "You must follow the given instructions below to successfully create a Board "
+    "Card for the user. You should only follow the instructions one-by-one, do not"
+    "immediately ask the user everything at once.\n"
     "  1. Ask the user for the card's title.\n"
     "  2. Ask the user if they want to assign it to themselves or just leave it without "
     "assignees.\n"
