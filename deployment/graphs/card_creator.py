@@ -1,9 +1,9 @@
 from typing import Literal
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langchain_core.messages import SystemMessage  # , merge_message_runs, trim_messages
-# from langchain_core.messages.utils import count_tokens_approximately
+from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.graph import StateGraph, START, END, MessagesState
+from trustcall import create_extractor
 
 from utils.bposeats import create_new_card
 from utils.configuration import Configuration
@@ -23,6 +23,7 @@ from utils.models import models
 def finish_process():
     """Fake tool to finish the card creation process."""
     return
+
 
 @tool
 def cancel_process():
@@ -55,13 +56,36 @@ def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler"
 def card_extractor_helper(state: CardState, config: RunnableConfig) -> CardState:
     """Handles in extracting Card information from user responses"""
 
-    test_card = Card()
-    test_card.creator = "15434"
-    test_card.assignees = ["15434"]
-    test_card.title = "Test Card by UserProfile#15434"
-    test_card.is_public = True
+    configurable = Configuration.from_runnable_config(config)
+    model_name = configurable.model_name
+    user_profile_pk = configurable.user_profile_pk
+    tool_name = "Card"
 
-    return {"card_details": test_card}
+    card_details = state.get("card_details", None)
+
+    detail_extractor = create_extractor(
+        models[model_name],
+        tools=[Card],
+        tool_choice=tool_name,
+        enable_inserts=True,
+        enable_deletes=True
+    )
+
+    FORMATTED_EXTRACTOR_MESSAGE = EXTRACTOR_MESSAGE.format(user_profile_pk=user_profile_pk)
+
+    merged_messages = list(merge_message_runs(
+            messages=[SystemMessage(content=FORMATTED_EXTRACTOR_MESSAGE)] + state["messages"]
+    ))
+
+    # TODO: Implement extracting specific Board/Column of user
+    #       currently only creates cards on the Development Board
+    #       and on the To Do column specifically. Can also extend
+    #       this to card creation on different Workforces
+
+    result = detail_extractor.invoke({"messages": merged_messages, "existing": {tool_name: card_details}})
+    extracted_card_details = result["responses"][0]
+
+    return {"card_details": extracted_card_details}
 
 
 def card_agent(state: CardState, config: RunnableConfig) -> CardState:
@@ -112,10 +136,25 @@ def card_creation_caller_node(state: CardState, config: RunnableConfig) -> CardS
     return {"messages": SystemMessage(content=FORMATTED_API_RESPONSE)}
 
 
+EXTRACTOR_MESSAGE = (
+    "# SYSTEM INSTRUCTIONS:\n"
+    "Your only job is to extract details from the current conversation to aid in creating "
+    "cards. You will be required to follow specific steps for each field on the Card model:\n\n"
+    "  1. title (str) - this can be anything the user says.\n"
+    "  2. creator (str) - this is the current user's UserProfile PK which is {user_profile_pk}.\n"
+    "  3. assignees (list[str]) - if the user assigns it to themselves, use their UserProfile PK, else"
+    " you can leave it blank. For example: ['15434'].\n"
+    "  4. is_public (boolean) - depends on if the user wants the card to be publicly available or not.\n"
+    "  5. column (str) - this always defaults to '213'.\n\n"
+)
+
+
 API_RESPONSE_MESSAGE = (
     "The user attempted to create a card and the server has responded with: {api_response}.\n"
-    "If 'pk' was returned by the server, consider the creation successful and inform the user "
-    "of this, else, inform the user that card creation has failed and to try again later."
+    "If 'pk' was returned by the server, consider the creation successful and inform the user,"
+    " else, inform the user that the card creation has failed and to try again later. "
+    "Do not mention anything about the server and its response, but respond simply and act "
+    "as if you were the one that created the card for the user."
 )
 
 AGENT_SYSTEM_MESSAGE = (
