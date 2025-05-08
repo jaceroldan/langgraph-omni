@@ -25,20 +25,20 @@ def finish_process():
     return
 
 
-def continue_to_tool(state: MessagesState) -> Literal["card_creation_caller_node", "create_card_tool_handler"]:
+def continue_to_tool(state: MessagesState) -> Literal["create_card_tool_handler", "input_helper"]:
     last_message = state["messages"][-1]
     if not (hasattr(last_message, "tool_calls") and len(last_message.tool_calls)):
         # Assume that: if there is no tool called, the agent is asking for
         #  an input from the user
-        return "create_card_tool_handler"
+        return "input_helper"
 
     tool_name = last_message.tool_calls[0]["name"]
     match tool_name:
         # Only leave the subgraph once the agent manually finishes the process
         case "finish_process":
-            return "card_creation_caller_node"
+            return "create_card_tool_handler"
 
-    return "create_card_tool_handler"
+    return "input_helper"
 
 
 def card_extractor_helper(state: CardState, config: RunnableConfig) -> CardState:
@@ -88,14 +88,7 @@ def card_creation_caller_node(state: CardState, config: RunnableConfig) -> CardS
     except Exception as e:
         api_response = f"An Exception has occurred! {str(e)}"
 
-    tool_call = state["messages"][-1].tool_calls[0]
-    tool_message = {
-        "content": f"The server has responded with: {api_response}",
-        "role": "tool",
-        "tool_call_id": tool_call["id"]
-    }
-
-    return tool_message
+    return {"messages": SystemMessage(content=f"The server has responded with: {api_response}")}
 
 
 AGENT_SYSTEM_MESSAGE = (
@@ -133,10 +126,9 @@ subgraph_builder.add_node("initial_tool_handler", tool_handler)
 subgraph_builder.add_edge(START, "initial_tool_handler")
 subgraph_builder.add_edge("initial_tool_handler", "card_agent")
 subgraph_builder.add_conditional_edges("card_agent", continue_to_tool)
-
-subgraph_builder.add_edge("create_card_tool_handler", "input_helper")
 subgraph_builder.add_edge("input_helper", "card_extractor_helper")
 subgraph_builder.add_edge("card_extractor_helper", "card_agent")
+subgraph_builder.add_edge("create_card_tool_handler", "card_creation_caller_node")
 subgraph_builder.add_edge("card_creation_caller_node", END)
 
 
