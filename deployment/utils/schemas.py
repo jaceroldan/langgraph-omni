@@ -5,6 +5,22 @@ from langgraph.graph import MessagesState
 
 
 # Tool Schemas
+class Choice(BaseModel):
+    text: Optional[str] = Field(description="Text that the user sees.")
+    response: Optional[str] = Field(description="Response that is sent by choosing the choice.")
+
+
+class Choices(BaseModel):
+    """
+        Contains choices extracted from LLM message and to be sent to the frontend.
+        These are usually suggestions or choices that are included in the message.
+    """
+    choice_selection: list[Choice] = Field(
+        description="List of responses the a user may answer with given a question.",
+        default_factory=list
+    )
+
+
 class Project(BaseModel):
     """
         Schema for project proposal details.
@@ -122,7 +138,11 @@ class Card(BaseModel):
 
 
 # State Schemas
-class ProjectState(MessagesState):
+class InputState(MessagesState):
+    extra_data: dict
+
+
+class ProjectState(InputState):
     """Used to transfer project information in-between subgraphs."""
     project_details: Project = Field(None, description="Project proposal details.")
 

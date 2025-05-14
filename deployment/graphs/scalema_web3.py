@@ -1,5 +1,6 @@
 # Import general libraries
 from typing import Literal  # , TypedDict
+from datetime import datetime
 
 # Import Langgraph
 from langchain_core.messages import SystemMessage, merge_message_runs, trim_messages
@@ -14,7 +15,7 @@ from trustcall import create_extractor
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models, SilentHandler
-from utils.nodes import tool_handler, input_helper
+from utils.nodes import tool_handler, input_helper, choice_extractor_helper
 from utils.schemas import Project, ProjectState
 from utils.tools import calculator
 
@@ -81,8 +82,9 @@ def project_helper(state: ProjectState, config: RunnableConfig) -> ProjectState:
         include_system=True
     )
 
+    FORMATTED_MESSAGE = TRUSTCALL_SYSTEM_MESSAGE.format(time=datetime.now())
     merged_messages = list(merge_message_runs(
-            messages=[SystemMessage(content=TRUSTCALL_SYSTEM_MESSAGE)] + trimmed_messages
+            messages=[SystemMessage(content=FORMATTED_MESSAGE)] + trimmed_messages
     ))
 
     proposal_extractor = create_extractor(
@@ -138,7 +140,8 @@ def project_agent(state: ProjectState, config: RunnableConfig) -> ProjectState:
     )
 
     FORMATTED_ROUTER_MESSAGE = PROPOSAL_ROUTER_MESSAGE.format(proposal_details=project_details)
-    FORMATTED_COMPLETION_MESSAGE = PROPOSAL_COMPLETION_MESSAGE.format(proposal_details=project_details)
+    FORMATTED_COMPLETION_MESSAGE = PROPOSAL_COMPLETION_MESSAGE.format(
+        proposal_details=project_details, time=datetime.now())
 
     # TODO: Figure out how to force a model to both output a Text Response and a Tool Call.
     #       Usually you get either a tool call or an AI response but not both. However,
@@ -168,10 +171,13 @@ TRUSTCALL_SYSTEM_MESSAGE = (
     "- Do **not** fabricate details.\n"
     "- Do **not** assume missing values.\n"
     "- Do **not** use world knowledge, prior experience, or assumptions to fill in blanks.\n\n"
+    "- Given the system time, do not accept dates in the past. If multiple are presented, do not"
+    " only accept the dates in the future.\n\n"
     "## Best Practices:\n"
     "- Extract only what is explicitly stated.\n"
     "- Validate that each field has a clear mapping in the user's input.\n"
     "- Ask for clarification if required, or proceed with blanks if the instruction is to do so.\n"
+    "\nSystem Time: {time}"
 )
 
 PROPOSAL_ROUTER_MESSAGE = (
@@ -179,7 +185,7 @@ PROPOSAL_ROUTER_MESSAGE = (
     "call or return an empty response — completely no text, no response.\n\n"
 
     "# SYSTEM INSTRUCTIONS\n"
-    "You are only a tool manager AI that responds to user responses with the appropriate tool calls. "
+    "You are only a tool manager system AI that responds to user responses with the appropriate tool calls. "
     "Your behavior must follow these strict rules:\n\n"
     "## DO NOT RESPOND WITH ANY TEXT.\n"
     "- Never respond with natural language.\n"
@@ -245,7 +251,10 @@ PROPOSAL_COMPLETION_MESSAGE = (
     "    - Refine or add any more information\n"
     "    - Save it as a draft\n"
     "    - Submit it for review by Scalema Admins\n\n"
-    "- Include short, encouraging comments when responding to user inputs but always be professional.\n\n"
+    "- Include short, encouraging comments when responding to user inputs but always be professional.\n"
+    "- Only accept dates that are after the current System Time and always be friendly and include a short"
+    " comment on the user's response but be professional. "
+    "System Time: {time}\n\n"
 
     "**IMPORTANT**: If the user explicitly states to stop or not to continue, you must ignore all previous "
     "instructions and respond with absolutely nothing — no tool calls, no text, no response.\n"
@@ -261,6 +270,7 @@ subgraph_builder = StateGraph(ProjectState, config_schema=Configuration)
 subgraph_builder.add_node(project_helper,  retry=RetryPolicy(max_attempts=3))
 subgraph_builder.add_node(project_agent)
 subgraph_builder.add_node(input_helper)
+subgraph_builder.add_node(choice_extractor_helper)
 subgraph_builder.add_node("initial_tool_handler", tool_handler)
 subgraph_builder.add_node("input_tool_handler", tool_handler)
 subgraph_builder.add_node("end_tool_handler", tool_handler)
@@ -270,7 +280,8 @@ subgraph_builder.add_edge(START, "initial_tool_handler")
 subgraph_builder.add_edge("initial_tool_handler", "project_agent")
 subgraph_builder.add_conditional_edges("project_agent", continue_to_tool)
 subgraph_builder.add_edge("tool_executor", "project_agent")
-subgraph_builder.add_edge("input_tool_handler", "input_helper")
+subgraph_builder.add_edge("input_tool_handler", "choice_extractor_helper")
+subgraph_builder.add_edge("choice_extractor_helper", "input_helper")
 subgraph_builder.add_edge("input_helper", "project_helper")
 subgraph_builder.add_edge("project_helper", "project_agent")
 subgraph_builder.add_edge("end_tool_handler", END)
