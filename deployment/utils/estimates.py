@@ -106,8 +106,7 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     user_profile_pk = configuration.user_profile_pk
     x_timezone = configuration.x_timezone
     workforce_id = configuration.workforce_id
-    model_name = configuration.model_name
-    node_model = models[model_name]
+    node_model = models["tool-calling-model"]
 
     response = fetch_weekly_task_estimates(
         auth_token, workforce_id, user_profile_pk, x_timezone)
