@@ -15,11 +15,13 @@ import settings
 def initialize(state: MemoryState, config: RunnableConfig):
     configuration = Configuration.from_runnable_config(config)
     auth_token = configuration.auth_token
+    x_timezone = configuration.x_timezone
 
     # Set Default properties
     Defaults.headers = {
         'Authorization': auth_token,
-        'X-App-Version': '1.0.0'
+        'X-App-Version': '1.0.0',
+        'X-Timezone': x_timezone
     }
     Defaults.base_url = f"{settings.API_URL}"
 
