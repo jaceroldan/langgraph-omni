@@ -22,7 +22,7 @@ from utils.memory import (
     memory_summarizer)
 from utils.estimates import fetch_weekly_task_estimates_summary
 from utils.navigation import get_navigation_links
-from utils.tasks import fetch_most_urgent_task
+from utils.tasks import fetch_most_urgent_task, fetch_tasks_to_complete_this_week
 
 from settings import POSTGRES_URI
 
@@ -147,10 +147,12 @@ MODEL_SYSTEM_MESSAGE = (
     "     - Their milestones\n"
     "     - The forms\n"
     "     - The company overview\n\n"
-    "5. **Getting Most Urgent Task**:\n"
-    "   - Call the `fetch_most_urgent_task` if the user requires information on which task is the most urgent."
+    "5. **Fetching Most Urgent Tasks**:\n"
+    "   - Call the `fetch_most_urgent_task` tool if the user requires information on which task is the most urgent."
     "   - Also use it whenever the user is asking for which task to focus on."
-    "5. **Memory Recall**:\n"
+    "6. **Fetching Tasks to Complete this Week**:\n"
+    "   - Call the `fetch_tasks_to_complete_this_week` tool if the user is asking for tasks to complete this week."
+    "7. **Memory Recall**:\n"
     "   - If the user refers to a past conversation or memory:\n"
     "     - Use `search_recall_memories` to retrieve it.\n"
     "     - If nothing is found, respond honestly that you don't know.\n\n"
@@ -171,7 +173,12 @@ MODEL_SYSTEM_MESSAGE = (
 
 # Initialize Graph
 memory_tools = [save_recall_memory, search_recall_memories]
-agent_tools = [fetch_weekly_task_estimates_summary, get_navigation_links, fetch_most_urgent_task]
+agent_tools = [
+    fetch_weekly_task_estimates_summary,
+    get_navigation_links,
+    fetch_most_urgent_task,
+    fetch_tasks_to_complete_this_week
+]
 node_tools = [web3_create_proposal, bposeats_create_card]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)

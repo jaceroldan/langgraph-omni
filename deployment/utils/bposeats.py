@@ -84,7 +84,7 @@ def fetch_tasks_due(args: dict):
         "search_key": "",
         "due_date_flag": due_date_flag,
         "sort_field": "-task__date_created",
-        "size_per_request": "20",
+        "size_per_request": "100",
         "assignee_id": user_profile_pk,
         "workforce_id": workforce_id
     }
