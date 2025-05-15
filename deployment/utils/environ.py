@@ -2,15 +2,17 @@
 This util file contains utility function for getting data from environment
 variables
 
-COPIED FROM bposeats/src/plex/plex/core/utils/environ.py
 
 """
+
+from urllib.parse import urlparse, urlunparse, quote
 import os
 
 
 USE_STRICT = os.environ.get('strict_config', 'False') == 'True'
 
 
+# COPIED FROM bposeats/src/plex/plex/core/utils/environ.py
 def get_settings_variable(env_name, default, required=False, parser=None):
     """ This function allows getting values of environment variables
 
@@ -31,3 +33,13 @@ def get_settings_variable(env_name, default, required=False, parser=None):
     if parser is not None:
         env_value = parser(env_value)
     return env_value
+
+
+def replace_postgres_hostname(uri: str, new_hostname: str) -> str:
+    parsed = urlparse(uri)
+    user = parsed.username
+    password = parsed.password or ''
+    port = f":{parsed.port}" if parsed.port else ''
+    auth = f"{user}:{quote(password)}" if password else user
+    netloc = f"{auth}@{new_hostname}{port}"
+    return urlunparse(parsed._replace(netloc=netloc))
