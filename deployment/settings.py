@@ -25,3 +25,25 @@ PGVECTOR_CONNECTION_STRING = get_settings_variable(
     required=True
 )
 COLLECTION_NAME = "recall_memories"
+
+# HQZEN NAVIGATION LINKS
+SITE_DOMAINS = {
+    "applybpo.com": get_settings_variable(
+        "APPLYBPO_URL", default="https://applybpo.com", required=True
+    ),
+    "bposeats.com": get_settings_variable(
+        "BPOSEATS_URL", default="https://bposeats.com", required=True
+    ),
+    "bpotube.com": get_settings_variable(
+        "BPOTUBE_URL", default="https://bpotube.com", required=True
+    ),
+    "centralbpo.com": get_settings_variable(
+        "CENTRALBPO_URL", default="https://centralbpo.com", required=True
+    ),
+    "scalema.com": get_settings_variable(
+        "SCALEMA_URL", default="https://scalema.com", required=True
+    ),
+    "hqzen.com": get_settings_variable(
+        "HQZEN_URL", default="https://hqzen.com", required=True
+    ),
+}
