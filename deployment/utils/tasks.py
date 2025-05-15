@@ -70,7 +70,7 @@ def fetch_tasks_to_complete_this_week(config: RunnableConfig) -> str:
         "If there are more than 20 tasks, highlight only the most critical or "
         "time-sensitive ones, and mention how many were left out. Your goal is to "
         "simply present the tasks in a clear and friendly manner, followed by a "
-        "brief, encouraging comment to help keep the user motivated."
+        "brief, professional, yet encouraging comment to help keep the user motivated."
     ).format(tasks=tasks)
     response = node_model.invoke(FORMATTED_TOOL_MESSAGE)
 
