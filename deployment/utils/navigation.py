@@ -1,7 +1,5 @@
-from langgraph.graph import MessagesState
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langgraph.store.postgres import PostgresStore
 
 from utils.environ import replace_postgres_hostname
 import settings
@@ -16,7 +14,14 @@ RETURN_MESSAGE = ("The following links are available to the user:\n"
 
 
 @tool
-def get_navigation_links(state: MessagesState, config: RunnableConfig, store: PostgresStore):
+def get_navigation_links(*args, config: RunnableConfig) -> str:
+    """
+        Fetches links for HQZEN.com
+
+        Returns:
+            A formatted context-aware string containing links for the user to navigate to.
+    """
+
     nav_links = [
         {"url": f"{HQZEN_URL}/profile/user-profile",
          "key": "user profile"},

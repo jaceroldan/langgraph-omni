@@ -1,10 +1,10 @@
 # Import Langgraph
-from langgraph.graph import StateGraph, START, END, MessagesState
+from langgraph.graph import StateGraph, START, END
 from langchain_core.runnables import RunnableConfig
 
 # Utils
 from utils.configuration import Configuration
-from utils.memory import load_memory
+from utils.memory import load_memory, MemoryState
 
 # Lib
 from lib.sileo.restmodel import Defaults
@@ -12,7 +12,7 @@ from lib.sileo.restmodel import Defaults
 import settings
 
 
-def initialize(state: MessagesState, config: RunnableConfig):
+def initialize(state: MemoryState, config: RunnableConfig):
     configuration = Configuration.from_runnable_config(config)
     auth_token = configuration.auth_token
 
@@ -26,7 +26,7 @@ def initialize(state: MessagesState, config: RunnableConfig):
     return {}
 
 
-builder = StateGraph(MessagesState, config_schema=Configuration)
+builder = StateGraph(MemoryState, config_schema=Configuration)
 builder.add_node(initialize)
 builder.add_node(load_memory)
 

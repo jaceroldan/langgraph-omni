@@ -20,8 +20,10 @@ from utils.memory import (
     save_recall_memory,
     search_recall_memories,
     memory_summarizer)
-from settings import POSTGRES_URI
 from utils.estimates import fetch_weekly_task_estimates_summary
+from utils.navigation import get_navigation_links
+
+from settings import POSTGRES_URI
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -133,6 +135,10 @@ MODEL_SYSTEM_MESSAGE = (
     "`fetch_weekly_task_estimates_summary` tool.\n"
     "   - Call the tool even if past memories indicate that the user has no remaining tasks for the week"
     " as there might be updates to the user's tasks.\n\n"
+    "4. **Navigating Links to HQZen**:\n"
+    "   - If the user would like to visit HQZen.com, call the `get_navigation_links` tool.\n"
+    "   - Other scenarios fit for calling the `get_navigation_links` tool:\n"
+    "     - If the user wants to see their profile."
     "4. **Memory Recall**:\n"
     "   - If the user refers to a past conversation or memory:\n"
     "     - Use `search_recall_memories` to retrieve it.\n"
@@ -154,7 +160,7 @@ MODEL_SYSTEM_MESSAGE = (
 
 # Initialize Graph
 memory_tools = [save_recall_memory, search_recall_memories]
-agent_tools = [fetch_weekly_task_estimates_summary]
+agent_tools = [fetch_weekly_task_estimates_summary, get_navigation_links]
 node_tools = [web3_create_proposal, bposeats_create_card]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
