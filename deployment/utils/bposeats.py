@@ -73,3 +73,20 @@ def fetch_weekly_task_estimates(args: dict):
 
     # Output response
     return estimates
+
+
+def fetch_tasks_due_today(args: dict):
+    user_profile_pk = args.get("user_profile_pk")
+    workforce_id = args.get("workforce_id")
+
+    payload = {
+        "search_key": "",
+        "due_date_flag": "Today",
+        "sort_field": "-task__date_created",
+        "size_per_request": "20",
+        "assignee_id": user_profile_pk,
+        "workforce_id": workforce_id
+    }
+
+    response = TaskAssignments.objects.filter(payload)
+    return response
