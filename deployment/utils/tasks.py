@@ -1,0 +1,43 @@
+# Import Langgraph
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+
+
+# Import utils
+from utils.bposeats import fetch_tasks_due_today
+from utils.configuration import Configuration
+from utils.models import models
+
+
+@tool
+def fetch_most_urgent_task(config: RunnableConfig) -> str:
+    """Fetches the most urgent task for the current user"""
+
+    configuration = Configuration.from_runnable_config(config)
+    user_profile_pk = configuration.user_profile_pk
+    workforce_id = configuration.workforce_id
+    node_model = models["tool-calling-model"]
+
+    form_data = {
+        "workforce_id": workforce_id,
+        "user_profile_pk": user_profile_pk,
+    }
+
+    api_response = fetch_tasks_due_today(form_data)
+    tasks = [{
+        "task": res["task"]["title"],
+        "current_duration_worked": res["total_duration"],
+        "is_scheduled_task": res["task"]["is_scheduled_task"],
+        "is_meeting": res["task"]["is_meeting"]
+    } for res in api_response["data"]]
+
+    FORMATTED_TOOL_MESSAGE = (
+        "You are an assistant that helps a user determine which tasks to do first. "
+        "The following are tasks assigned to the user which can also be empty:\n"
+        "{tasks}\n"
+        "These tasks are due today so you must determine which tasks are the most "
+        "urgent given the information."
+    ).format(tasks=tasks)
+    response = node_model.invoke(FORMATTED_TOOL_MESSAGE)
+
+    return response

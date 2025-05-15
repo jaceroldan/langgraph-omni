@@ -135,11 +135,3 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     """.format(ai_estimation_hours=ai_estimation_hours)
 
     return response
-
-
-@tool
-def fetch_most_urgent_task(config: RunnableConfig) -> str:
-    """Fetches the most urgent task for the current user"""
-
-    # configuration = Configuration.from_runnable_config(config)
-    pass
