@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 
 # Import utils
 from utils.models import models
-from utils.api_caller import fetch_weekly_task_estimates
+from utils.bposeats import fetch_weekly_task_estimates
 from utils.configuration import Configuration
 
 
@@ -101,18 +101,19 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     """
 
     configuration = Configuration.from_runnable_config(config)
-    auth_token = configuration.auth_token
     job_position = configuration.job_position
     user_profile_pk = configuration.user_profile_pk
-    x_timezone = configuration.x_timezone
     workforce_id = configuration.workforce_id
     node_model = models["tool-calling-model"]
 
-    response = fetch_weekly_task_estimates(
-        auth_token, workforce_id, user_profile_pk, x_timezone)
+    form_data = {
+        "workforce_id": workforce_id,
+        "user_profile_pk": user_profile_pk,
+    }
+
+    response = fetch_weekly_task_estimates(form_data)
 
     if response:
-        response = response['data']
         ai_estimation_hours = estimate_tasks_duration(
             node_model,
             response['target_task_names'],
@@ -134,3 +135,11 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     """.format(ai_estimation_hours=ai_estimation_hours)
 
     return response
+
+
+@tool
+def fetch_most_urgent_task(config: RunnableConfig) -> str:
+    """Fetches the most urgent task for the current user"""
+
+    # configuration = Configuration.from_runnable_config(config)
+    pass
