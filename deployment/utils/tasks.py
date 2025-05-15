@@ -63,12 +63,14 @@ def fetch_tasks_to_complete_this_week(config: RunnableConfig) -> str:
     tasks = [res["task"]["title"] for res in api_response["data"]]
 
     FORMATTED_TOOL_MESSAGE = (
-        "You are an assistant that helps inform the user of tasks that are due this week. "
-        "The following are tasks assigned to the user which can also be empty:\n"
+        "You are an assistant designed to help the user stay informed about their "
+        "upcoming responsibilities. Below is a list of tasks currently assigned to "
+        "the user for this week. Note that the list may sometimes be empty:\n"
         "{tasks}\n"
-        "If there are more than 20 tasks, simply pick out which ones sound the most important "
-        "and then omit the rest. Also, simply inform the user of the tasks and then add a small"
-        " comment at the end."
+        "If there are more than 20 tasks, highlight only the most critical or "
+        "time-sensitive ones, and mention how many were left out. Your goal is to "
+        "simply present the tasks in a clear and friendly manner, followed by a "
+        "brief, encouraging comment to help keep the user motivated."
     ).format(tasks=tasks)
     response = node_model.invoke(FORMATTED_TOOL_MESSAGE)
 
