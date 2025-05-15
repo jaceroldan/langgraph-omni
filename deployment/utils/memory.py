@@ -115,7 +115,8 @@ def save_recall_memory(memory: str, config: RunnableConfig) -> str:
         id=id,
         metadata={
             "user_profile_pk": user_profile_pk,
-            "timestamp": timestamp
+            "timestamp": timestamp,
+            "type": "memory"
         }
     )
 
@@ -137,10 +138,11 @@ def search_recall_memories(query: str, config: RunnableConfig) -> List[str]:
 
     documents = recall_vector_store.similarity_search(
         query,
-        k=3,
+        k=10,
         filter={
             "user_profile_pk": user_profile_pk,
-            "timestamp": {"$gte": since}
+            "timestamp": {"$gte": since},
+            "type": "memory"
         }
     )
 
