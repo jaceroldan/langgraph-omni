@@ -41,7 +41,7 @@ def input_helper(state: InputState) -> MessagesState:
         Helper node used for receiving the User's response for HITL.
     """
 
-    extra_data = state.get("extra_data")
+    extra_data = state.get("extra_data", {})
     choices = extra_data.get("choices")
     value = {}
 
