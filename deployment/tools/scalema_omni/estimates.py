@@ -7,14 +7,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-
 # Import utils
 from utils.models import models
-from utils.bposeats import fetch_weekly_task_estimates
+from api import fetch_weekly_task_estimates
 from utils.configuration import Configuration
 
 
-def generate_completion(model, system_prompt: str, user_prompt: str) -> Decimal:
+def generate_completion(
+        model, system_prompt: str, user_prompt: str) -> Decimal:
     """
         Performs the external API call to OpenAI and returns an integer
         value for estimated hours
@@ -104,11 +104,13 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     job_position = configuration.job_position
     user_profile_pk = configuration.user_profile_pk
     workforce_id = configuration.workforce_id
+    source = configuration.source
     node_model = models["tool-calling-model"]
 
     form_data = {
         "workforce_id": workforce_id,
         "user_profile_pk": user_profile_pk,
+        "source": source
     }
 
     response = fetch_weekly_task_estimates(form_data)
@@ -124,14 +126,15 @@ def fetch_weekly_task_estimates_summary(config: RunnableConfig) -> str:
     else:
         ai_estimation_hours = 0
 
-    response = """
-        Below is the estimated number of hours required to complete the tasks
-        the system has generated for the user:
-        {ai_estimation_hours}
-
-        Discuss with them how many hours are needed for the current week's
-        tasks. If there are no tasks remaining, congratulate them on
-        completing their work for the week and encourage them to relax.
-    """.format(ai_estimation_hours=ai_estimation_hours)
-
-    return response
+    # Temporary workaround: force the LLM to format its reply cleanly by
+    # injecting a “system_message” instruction into the tool output.
+    # Because LangGraph currently auto-prepends the raw tool return value
+    return {
+        "ai_estimation_hours": ai_estimation_hours,
+        "system_message": (
+            "If the user has tasks, start your reply with a blank space and the word 'Hours' "
+            "right after. Proceed to construct your response."
+            "Example: ' Hours. *Insert LLM Response*'"
+            "If the user doesn't have any tasks, just send your response immediately."
+        )
+    }

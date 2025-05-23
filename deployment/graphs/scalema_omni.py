@@ -15,16 +15,15 @@ from langgraph.pregel import RetryPolicy
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import (
+from settings import POSTGRES_URI
+from tools.scalema_omni import (
     MemoryState,
     save_recall_memory,
     search_recall_memories,
-    memory_summarizer)
-from utils.estimates import fetch_weekly_task_estimates_summary
+    memory_summarizer,
+    fetch_weekly_task_estimates_summary)
 from utils.navigation import get_navigation_links
 from utils.tasks import fetch_most_urgent_task, fetch_tasks_to_complete_this_week
-
-from settings import POSTGRES_URI
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
