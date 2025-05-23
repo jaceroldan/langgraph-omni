@@ -2,10 +2,6 @@ import math
 import numexpr
 
 from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-
-
-model = ChatOpenAI(model="gpt-4o", temperature=0)
 
 
 @tool
