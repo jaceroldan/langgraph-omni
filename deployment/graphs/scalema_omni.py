@@ -12,9 +12,12 @@ from langgraph.prebuilt import ToolNode
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
-from utils.memory import MemoryState, save_recall_memory, search_recall_memories
 from utils.constants import DB_URI
-from utils.estimates import fetch_weekly_task_estimates_summary
+from tools.scalema_omni import (
+    MemoryState,
+    save_recall_memory,
+    search_recall_memories,
+    fetch_weekly_task_estimates_summary)
 
 # Import subgraphs
 from graphs.scalema_web3 import scalema_web3_subgraph
@@ -96,7 +99,11 @@ MODEL_SYSTEM_MESSAGE = (
 
 
 # Initialize Graph
-agent_tools = [save_recall_memory, search_recall_memories, fetch_weekly_task_estimates_summary]
+agent_tools = [
+        save_recall_memory,
+        search_recall_memories,
+        fetch_weekly_task_estimates_summary
+    ]
 node_tools = [CreateProposal]
 
 builder = StateGraph(MemoryState, config_schema=Configuration)

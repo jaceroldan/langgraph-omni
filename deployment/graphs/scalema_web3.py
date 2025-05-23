@@ -14,7 +14,7 @@ from utils.configuration import Configuration
 from utils.models import models
 from utils.nodes import tool_handler
 from utils.schemas import Project, ProjectState, Choices
-from utils.tools import calculator
+from tools.scalema_web3 import calculator
 
 # Import subgraphs
 from graphs.input_handling import input_handler_subgraph
