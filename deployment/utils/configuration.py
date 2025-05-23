@@ -16,6 +16,7 @@ class Configuration:
     employment_id: str = ""
     company_id: str = ""
     payroll_id: str = ""
+    source: Optional[str] = None
     workforce_id: Optional[str] = None
     job_position: Optional[str] = None
     x_timezone: Optional[str] = None

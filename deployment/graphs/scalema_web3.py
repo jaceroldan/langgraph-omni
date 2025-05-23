@@ -17,7 +17,7 @@ from utils.configuration import Configuration
 from utils.models import models, SilentHandler
 from utils.nodes import tool_handler, input_helper, choice_extractor_helper
 from utils.schemas import Project, ProjectState
-from utils.tools import calculator
+from tools.scalema_web3 import calculator
 
 import settings
 
