@@ -1,3 +1,5 @@
+# DEPRECATED: This file is deprecated and will be removed in a future version.
+
 import requests
 import urllib.parse
 import json
