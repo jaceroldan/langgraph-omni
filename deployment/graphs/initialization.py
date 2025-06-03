@@ -4,7 +4,7 @@ from langchain_core.runnables import RunnableConfig
 
 # Utils
 from utils.configuration import Configuration
-from utils.memory import MemoryState, load_memory
+from utils.memory import load_memory, MemoryState
 
 # Lib
 from lib.sileo.restmodel import Defaults
@@ -23,7 +23,7 @@ def initialize(state: MemoryState, config: RunnableConfig):
     }
     Defaults.base_url = f"{settings.API_URL}"
 
-    return {**state}
+    return {}
 
 
 builder = StateGraph(MemoryState, config_schema=Configuration)
