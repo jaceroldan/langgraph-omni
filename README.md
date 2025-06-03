@@ -3,42 +3,41 @@
 ## Requirements
 
 - Python 3.13
-- Docker
-- Postgres
-- Pyenv
+- Docker 26+
+- Postgresql 14+
 
 ## Creating deployment
 
 1. Install Python using pyenv
 
-    ```cmd
+    ```shell
     pyenv install 3.13
     pyenv local 3.13
     ```
 
 2. Create a new virtualenv
 
-    ```cmd
+    ```shell
     python -m venv venv
     source venv/bin/activate
     ```
 
     Use the following if on windows:
 
-    ```cmd
+    ```shell
     python -m venv venv
     venv/Scripts/activate.bat
     ```
 
 3. Install requirements
 
-    ```cmd
+    ```shell
     pip install -r requirements.txt
     ```
 
 4. Change your current directory to `deployment`
 
-    ```cmd
+    ```shell
     cd deployment
     ```
 
@@ -56,6 +55,7 @@
 
     API_URL=http://host.docker.internal:8000
     POSTGRES_URI=postgres://bposeatsuser:bposeatspassword@host.docker.internal:5432/bposeats?sslmode=disable
+    PGVECTOR_CONNECTION_STRING=postgresql+psycopg2://bposeatsuser:bposeatspassword@host.docker.internal:5432/bposeats
     REDIS_URI=redis://langgraph-redis:6379
     ```
 
@@ -68,22 +68,31 @@
     - Change the URL and environment variables according to the one you set in your `local_settings.py` inside bposeats
     - `DB_HOST` can be left as `host.docker.internal`
 
+    This is also similar for `PGVECTOR_CONNECTION_STRING`
+
 6. Create an image for your deployment (Always do this every time there is a new change.)
 
-    ```cmd
-    langgraph build -t langgraph-image
+    ```shell
+    langgraph build -t langgraph-image:latest
+    ```
+
+    **WARNING:** Remember that creating new images will take up space, run the following commands to free up space:
+
+    ```shell
+    docker rmi $(docker images -a)
+    docker rm -vf $(docker ps -aq)
     ```
 
 7. If everything is working, launch the deployment.
 
-    ```cmd
-    docker-compose up
+    ```shell
+    docker compose up
     ```
 
 8. To shutdown the container, do the following in terminal:
 
-    ```cmd
-    docker-compose down
+    ```shell
+    docker compose down
     ```
 
 ## POSTGRES DB
