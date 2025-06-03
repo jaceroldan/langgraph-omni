@@ -1,15 +1,20 @@
+# DEPRECATED: This file is deprecated and will be removed in a future version.
+
 # Import general libraries
 from typing import Callable, List
 
 # Import Langgraph
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, trim_messages, merge_message_runs
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.types import interrupt
+from langchain_core.messages.utils import count_tokens_approximately
 
 # Import utility functions
 from utils.configuration import Configuration
 from utils.models import models
+
+import settings
 
 
 # Schema
@@ -41,14 +46,26 @@ def interrupt_handler(state: InputState, config: RunnableConfig) -> MessagesStat
     """
     configuration = Configuration.from_runnable_config(config)
     model_name = configuration.model_name
-    model_history_length = configuration.model_history_length
     tools = state["tools"]
     handler_message = state["handler_message"]
 
+    trimmed_messages = trim_messages(
+        state["messages"][-1:],
+        strategy="last",
+        token_counter=count_tokens_approximately,
+        max_tokens=settings.TOKEN_LIMIT_SMALL,
+        start_on="human",
+        end_on=("human", "tool"),
+        allow_partial=False
+    )
+
+    merged_messages = list(merge_message_runs(
+            messages=[SystemMessage(content=handler_message)] + trimmed_messages
+    ))
+
     node_model = models[model_name].bind_tools(tools, parallel_tool_calls=False)
 
-    response = node_model.invoke(
-        [SystemMessage(content=handler_message)] + state["messages"][-model_history_length:])
+    response = node_model.invoke(merged_messages)
     return {"messages": [response]}
 
 
