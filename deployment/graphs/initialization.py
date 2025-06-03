@@ -4,7 +4,7 @@ from langchain_core.runnables import RunnableConfig
 
 # Utils
 from utils.configuration import Configuration
-from utils.memory import load_memory, MemoryState
+from tools.scalema_omni.memory import load_memory, MemoryState
 
 # Lib
 from lib.sileo.restmodel import Defaults

@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.graph import StateGraph, START, END, MessagesState
 from trustcall import create_extractor
 
-from utils.bposeats import create_new_card
+from api.bposeats import create_new_card
 from utils.configuration import Configuration
 from utils.schemas import CardState, Card
 from utils.nodes import tool_handler, input_helper

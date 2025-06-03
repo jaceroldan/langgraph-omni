@@ -4,7 +4,7 @@ from langchain_core.tools import tool
 
 
 # Import utils
-from utils.bposeats import fetch_tasks_due
+from api.bposeats import fetch_tasks_due
 from utils.configuration import Configuration
 from utils.models import models
 
