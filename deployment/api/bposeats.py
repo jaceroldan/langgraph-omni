@@ -1,67 +1,50 @@
-# DEPRECATED: This file is deprecated and will be removed in a future version.
-
-import requests
-import urllib.parse
+from lib.sileo.restmodel import Model
 import json
 
-from settings import API_URL
+TaskCount = Model(namespace="hqzen", resource="task-count", version="v4")
+TimeLog = Model(namespace="timelogging", resource="time-log", version="v4")
+Card = Model(namespace="board", resource="card-panel", version="v1")
+TaskAssignments = Model(namespace="hqzen", resource="task-assignments", version="v4")
+LangGraphAITaskEstimation = Model(namespace="ai", resource="langgraph-task-duration-estimation", version="v1")
 
 
-def fetch_task_counts(auth_token, workforce_id):
-    headers = {
-        "Authorization": auth_token
+def fetch_task_counts(args: dict):
+    payload = {
+        "workforce_id": args.get("workforce_id")
     }
-    url = f"{API_URL}/api-sileo/v4/hqzen/task-count/filter/?workforce_id={workforce_id}"
-    response = requests.get(url, headers=headers)
-
-    return response.json()
+    response = TaskCount.objects.filter(payload)
+    return response
 
 
-def fetch_shift_logs(auth_token, employment_id, shift_start):
-    encoded_datetime = urllib.parse.quote(shift_start)
-    headers = {
-        "Authorization": auth_token
+def fetch_shift_logs(args: dict):
+    payload = {
+        "employment_id": args.get("employment_id"),
+        "shift_start": args.get("shift_start")
     }
-    url = f"{API_URL}/api-sileo/ai/timelogging/time-log/filter/?employment_id={employment_id}&shift_start={encoded_datetime}"  # noqa
-    response = requests.get(url, headers=headers)
-
-    return response.json()
+    response = TimeLog.objects.filter(payload)
+    return response
 
 
-def create_card(auth_token, data: dict):
-    headers = {
-        "Authorization": auth_token
-    }
+def create_new_card(args: dict):
+    # TODO: Try to find a way to determine the user's board/column
 
-    user_id = data.get("user_id")
-    title = data.get("title")
-    is_public = data.get("is_public", True)
-
-    url = f"{API_URL}/api-sileo/v1/board/card-panel/create/"
-    data = {
-        "creator": user_id,
-        "assignees": user_id,
-        "title": title,
-        "column": "213",
-        "is_public": is_public
-    }
-    response = requests.post(url, data=data, headers=headers)
-    return response.status_code
-
-
-def fetch_weekly_task_estimates(auth_token, workforce_id, user_profile_pk, x_timezone, source):
-    headers = {
-        "Authorization": auth_token,
-        "X-Timezone": x_timezone
+    form_data = {
+        "creator": args.get("creator"),
+        "assignees": args.get("assignees"),
+        "title": args.get("title"),
+        "column": args.get("column", "213"),  # To Do column inside Development Board inside BPOSeats workforce
+        "is_public": args.get("is_public", "True"),
     }
 
-    if source:
-        headers['X-Platform'] = source
+    response = Card.objects.create(form_data)
+    return response
 
-    url = f"{API_URL}/api-sileo/v4/hqzen/task-assignments/filter/"
-    url2 = f"{API_URL}/api-sileo/v1/ai/langgraph-task-duration-estimation/filter/"
 
-    params = {
+def fetch_weekly_task_estimates(args: dict):
+    user_profile_pk = args.get("user_profile_pk")
+    workforce_id = args.get("workforce_id")
+
+    payload = {
         "search_key": "",
         "due_date_flag": "Week",
         "sort_field": "-task__date_created",
@@ -70,15 +53,12 @@ def fetch_weekly_task_estimates(auth_token, workforce_id, user_profile_pk, x_tim
         "workforce_id": workforce_id
     }
 
-    query_string = urllib.parse.urlencode(params)
-    full_url = f"{url}?{query_string}"
-    response = requests.get(full_url, headers=headers)
+    response = TaskAssignments.objects.filter(payload)
     estimates = None
 
     try:
-        response_json = response.json()
         task_names = [
-            item["task"]["title"] for item in response_json["data"]["data"]]
+            item["task"]["title"] for item in response["data"]]
 
         if task_names:
             estimate_parameters = {
@@ -86,13 +66,28 @@ def fetch_weekly_task_estimates(auth_token, workforce_id, user_profile_pk, x_tim
                 "task_names":  json.dumps(task_names),
                 "n_similar_task_count": 10
             }
-            params = urllib.parse.urlencode(estimate_parameters)
-            fetch_estimates = f"{url2}?{params}"
-            estimates = requests.get(fetch_estimates, headers=headers)
-            estimates = estimates.json()
+            estimates = LangGraphAITaskEstimation.objects.filter(estimate_parameters)
 
     except Exception as e:
         print(f"Something went wrong! {e}")
 
     # Output response
     return estimates
+
+
+def fetch_tasks_due(args: dict):
+    user_profile_pk = args.get("user_profile_pk")
+    workforce_id = args.get("workforce_id")
+    due_date_flag = args.get("due_date_flag")
+
+    payload = {
+        "search_key": "",
+        "due_date_flag": due_date_flag,
+        "sort_field": "-task__date_created",
+        "size_per_request": "100",
+        "assignee_id": user_profile_pk,
+        "workforce_id": workforce_id
+    }
+
+    response = TaskAssignments.objects.filter(payload)
+    return response
