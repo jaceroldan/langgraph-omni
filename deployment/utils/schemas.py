@@ -103,6 +103,40 @@ class Project(BaseModel):
     )
 
 
+class Card(BaseModel):
+    """
+        Schema for BPOSEATS boards cards.
+
+        It contains the following fields:
+            - creator
+            - assignees
+            - title
+            - column
+            - is_public
+    """
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "Card": {
+                    "creator": "15434",
+                    "assignees": ["15434", "074"],
+                    "title": "Example Board Card",
+                    "column": "213",
+                    "is_public": True
+                }
+            }
+        }
+
+    creator: Optional[str] = Field(None, description="The creator PK of the user creating the Board Card.")
+    assignees: list[str] = Field(
+        description="List of user_profile PKs of users to assign the Board Card to.",
+        default_factory=list
+    )
+    title: Optional[str] = Field("", description="The title of the Board Card.")
+    column: Optional[str] = Field("", description="Board Column where the Card will be created on.")
+    is_public: Optional[bool] = Field(True, description="Value that allows the Board Card to be visible on the Board.")
+
+
 # State Schemas
 class InputState(MessagesState):
     extra_data: dict
@@ -111,3 +145,8 @@ class InputState(MessagesState):
 class ProjectState(InputState):
     """Used to transfer project information in-between subgraphs."""
     project_details: Project = Field(None, description="Project proposal details.")
+
+
+class CardState(MessagesState):
+    """Used to transfer card information in-between subgraphs."""
+    card_details: Card = Field(None, description="Specific Boards card details.")
