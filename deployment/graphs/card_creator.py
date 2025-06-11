@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.graph import StateGraph, START, END, MessagesState
 from trustcall import create_extractor
 
-from utils.bposeats import create_new_card
+from api.bposeats import create_new_card
 from utils.configuration import Configuration
 from utils.schemas import CardState, Card
 from utils.nodes import tool_handler, input_helper
@@ -144,7 +144,7 @@ EXTRACTOR_MESSAGE = (
     "  2. creator (str) - this is the current user's UserProfile PK which is {user_profile_pk}.\n"
     "  3. assignees (list[str]) - if the user assigns it to themselves, use their UserProfile PK, else"
     " you can leave it blank. For example: ['15434'].\n"
-    "  4. is_public (boolean) - depends on if the user wants the card to be publicly available or not.\n"
+    "  4. is_public (boolean) - return true if the user wants the card to be publicly available else false.\n"
     "  5. column (str) - this always defaults to '213'.\n\n"
 )
 
